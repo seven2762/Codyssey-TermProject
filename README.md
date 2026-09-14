@@ -72,6 +72,12 @@ uv add <패키지명>
 인증·AI 연동에서 환경 변수를 도입할 때 `.env.example`과 설정 설명을 추가합니다.
 실제 `.env`, 가상환경, Python 캐시, 실행 중 생성되는 DB·로그 파일은 Git에서 제외합니다.
 
+## 배포
+
+GitHub Actions에서 Docker 이미지를 `2hynmin/codyssey-term`에 게시하고 OCI Compute
+인스턴스에 배포합니다. OCI와 GitHub Secrets 준비, 로컬 Docker 검증, 배포 및 롤백
+절차는 [OCI Docker 배포 가이드](docs/DEPLOYMENT.md)를 참고하세요.
+
 ## 협업
 
 작업 브랜치는 최신 `develop`에서 생성하고, `작업 브랜치 → develop → main` 순서로
