@@ -23,3 +23,9 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# IDE settings
+.idea/
+
+# Local project reference documents
+/askmate_project_plan.pdf
