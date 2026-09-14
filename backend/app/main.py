@@ -18,6 +18,11 @@ from fastapi import FastAPI
 # 자체 제작 모듈
 from app.logger import logger
 
+# 앱 라우터
+from app.account import router as account_router
+from app.history import router as history_router
+from app.llm import router as llm_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,6 +34,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AskMate", lifespan=lifespan)
+app.include_router(account_router, prefix="/api")
+app.include_router(llm_router, prefix="/api")
+app.include_router(history_router, prefix="/api")
 
 
 @app.get("/health")
