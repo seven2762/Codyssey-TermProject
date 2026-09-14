@@ -74,9 +74,10 @@ uv add <패키지명>
 
 ## 배포
 
-GitHub Actions에서 Docker 이미지를 `2hynmin/codyssey-term`에 게시하고 OCI Compute
-인스턴스에 배포합니다. OCI와 GitHub Secrets 준비, 로컬 Docker 검증, 배포 및 롤백
-절차는 [OCI Docker 배포 가이드](docs/DEPLOYMENT.md)를 참고하세요.
+GitHub Actions에서 Docker 이미지를 `2hynmin/codyssey-term`에 게시하고 Tailscale을
+통해 OCI Compute 인스턴스에 배포합니다. OCI와 GitHub Secrets 준비, Tailnet 접근
+정책, 로컬 Docker 검증, 배포 및 롤백 절차는
+[OCI Docker 배포 가이드](docs/DEPLOYMENT.md)를 참고하세요.
 
 ## 협업
 

@@ -53,6 +53,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     concurrency:
       group: oci-production
       cancel-in-progress: false
@@ -62,11 +65,43 @@ jobs:
       OCI_SSH_USER: ${{ secrets.OCI_SSH_USER }}
       OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
       OCI_SSH_KNOWN_HOSTS: ${{ secrets.OCI_SSH_KNOWN_HOSTS }}
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
       OCI_SSH_PORT: ${{ vars.OCI_SSH_PORT || '22' }}
       OCI_APP_PORT: ${{ vars.OCI_APP_PORT || '8000' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Validate deployment settings
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for required_name in \
+            DOCKERHUB_TOKEN \
+            OCI_HOST \
+            OCI_SSH_USER \
+            OCI_SSH_PRIVATE_KEY \
+            OCI_SSH_KNOWN_HOSTS \
+            TS_OAUTH_CLIENT_ID \
+            TS_AUDIENCE
+          do
+            if [[ -z "${!required_name:-}" ]]; then
+              echo "Missing required secret: ${required_name}" >&2
+              exit 1
+            fi
+          done
+
+          if [[ ! "$OCI_SSH_PORT" =~ ^[0-9]+$ ]]; then
+            echo "OCI_SSH_PORT must be numeric." >&2
+            exit 1
+          fi
+
+          if [[ ! "$OCI_APP_PORT" =~ ^[0-9]+$ ]]; then
+            echo "OCI_APP_PORT must be numeric." >&2
+            exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -98,33 +133,13 @@ jobs:
           provenance: true
           sbom: true
 
-      - name: Validate deployment settings
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          for required_name in \
-            DOCKERHUB_TOKEN \
-            OCI_HOST \
-            OCI_SSH_USER \
-            OCI_SSH_PRIVATE_KEY \
-            OCI_SSH_KNOWN_HOSTS
-          do
-            if [[ -z "${!required_name:-}" ]]; then
-              echo "Missing required secret: ${required_name}" >&2
-              exit 1
-            fi
-          done
-
-          if [[ ! "$OCI_SSH_PORT" =~ ^[0-9]+$ ]]; then
-            echo "OCI_SSH_PORT must be numeric." >&2
-            exit 1
-          fi
-
-          if [[ ! "$OCI_APP_PORT" =~ ^[0-9]+$ ]]; then
-            echo "OCI_APP_PORT must be numeric." >&2
-            exit 1
-          fi
+      - name: Connect deployment runner to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          audience: ${{ secrets.TS_AUDIENCE }}
+          tags: tag:ci
+          ping: ${{ secrets.OCI_HOST }}
 
       - name: Configure SSH
         shell: bash
@@ -156,8 +171,8 @@ jobs:
           set -euo pipefail
 
           printf -v remote_environment \
-            'TARGET_IMAGE=%q CONTAINER_NAME=%q OCI_APP_PORT=%q' \
-            "$TARGET_IMAGE" "$CONTAINER_NAME" "$OCI_APP_PORT"
+            'TARGET_IMAGE=%q CONTAINER_NAME=%q OCI_BIND_HOST=%q OCI_APP_PORT=%q' \
+            "$TARGET_IMAGE" "$CONTAINER_NAME" "$OCI_HOST" "$OCI_APP_PORT"
 
           ssh \
             -i "$HOME/.ssh/oci_deploy_key" \
@@ -171,6 +186,11 @@ jobs:
           backup_container="${CONTAINER_NAME}-previous"
           env_file="/opt/askmate/.env"
 
+          if ! tailscale ip -4 | grep -Fxq "$OCI_BIND_HOST"; then
+            echo "OCI_HOST is not assigned to this server's Tailscale interface." >&2
+            exit 1
+          fi
+
           docker pull "$TARGET_IMAGE"
           docker rm --force "$backup_container" >/dev/null 2>&1 || true
 
@@ -183,7 +203,7 @@ jobs:
             --detach
             --name "$CONTAINER_NAME"
             --restart unless-stopped
-            --publish "${OCI_APP_PORT}:8000"
+            --publish "${OCI_BIND_HOST}:${OCI_APP_PORT}:8000"
           )
 
           if [[ -f "$env_file" ]]; then
