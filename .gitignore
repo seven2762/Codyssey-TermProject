@@ -1,0 +1,31 @@
+# Python virtual environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local environment variables (keep shareable examples)
+.env
+.env.*
+!.env.example
+
+# Runtime database files and logs
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.log
+
+# macOS
+.DS_Store
+
+# IDE settings
+.idea/
+
+# Local project reference documents
+/askmate_project_plan.pdf

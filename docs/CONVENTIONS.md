@@ -128,13 +128,13 @@ Squash and merge는 여러 커밋을 하나로 합치므로 이 프로젝트의 
 
 ## 7. 백엔드 개발 환경 규칙
 
-다음은 이후 백엔드 초기 구성에서 구현할 기준이며, 이 문서 PR이 서버를 추가하지는 않는다.
+백엔드 설치와 실행 명령은 [README](../README.md)를 기준으로 한다.
 
 - FastAPI 서비스와 Python 프로젝트 설정은 `backend/`에 둔다.
 - `backend/pyproject.toml`과 `backend/uv.lock`을 함께 버전 관리한다.
-- 팀 공통 Python 버전은 초기 구성 시 정하고 `.python-version`과 README에 기록한다.
+- 팀 공통 Python 버전은 3.14.x이며 `backend/.python-version`과 README에 기록한다.
 - 의존성 추가는 `backend/`에서 `uv add <패키지>`, 설치는 `uv sync`로 수행한다.
-- 실행 명령은 `uv run`을 사용하며, 실제 진입점과 명령은 초기 구성 후 README에 기록한다.
+- 실행 명령은 `uv run`을 사용하며, 실제 진입점과 명령은 README에 기록한다.
 - `.venv`, Python 캐시, 실제 `.env` 및 실행 중 생성되는 DB·로그는 Git에 올리지 않는다.
 - 환경 변수를 도입하면 `.env.example`에 변수 이름과 비밀이 아닌 예시 값을 기록한다.
 - 인증 방식, AI 제공자, DB 모델 등 기능 설계는 해당 작업에서 관련 팀원과 정한다.
