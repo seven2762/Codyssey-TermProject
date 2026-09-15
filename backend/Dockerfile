@@ -18,6 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
 RUN useradd --create-home --uid 10001 askmate \
+    && mkdir -p /app/data \
     && chown -R askmate:askmate /app
 
 USER askmate
