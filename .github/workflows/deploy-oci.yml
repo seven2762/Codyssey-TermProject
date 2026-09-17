@@ -204,6 +204,7 @@ jobs:
             --name "$CONTAINER_NAME"
             --restart unless-stopped
             --publish "${OCI_BIND_HOST}:${OCI_APP_PORT}:8000"
+            --mount "type=volume,source=askmate-data,target=/app/data"
           )
 
           if [[ -f "$env_file" ]]; then

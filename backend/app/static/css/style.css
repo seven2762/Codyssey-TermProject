@@ -1,0 +1,17 @@
+body {
+    max-width: 800px;
+    margin: 32px auto;
+    padding: 0 16px;
+    font-family: sans-serif;
+    line-height: 1.6;
+}
+
+nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+main {
+    margin-top: 32px;
+}

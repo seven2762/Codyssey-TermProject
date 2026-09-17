@@ -1,7 +1,8 @@
 # AskMate - 로그인 기반 범용 AI 챗봇 프로젝트
 
 로그인한 사용자가 AI와 대화하고 자신의 대화 기록을 조회하는 웹 서비스입니다.
-현재는 FastAPI 서버의 기본 실행 환경과 상태 확인 API까지 구현되어 있습니다.
+현재는 FastAPI 실행 환경, Jinja2 화면 골격, SQLite 연결 확인과 LLM 통신 골격까지 구현되어 있습니다.
+계정 인증·실제 AI 호출·대화 저장 및 조회는 아직 구현되지 않았습니다.
 
 ## 개발 환경
 
@@ -21,7 +22,13 @@
     ├── uv.lock            # 하위 의존성을 포함한 버전 잠금 파일
     └── app/
         ├── __init__.py
-        └── main.py        # FastAPI 앱과 상태 확인 API
+        ├── main.py        # FastAPI 앱과 상태 확인 API
+        ├── pages.py       # Jinja2 화면 경로
+        ├── templates/     # 화면 HTML
+        ├── static/        # CSS·JavaScript·이미지
+        ├── models/        # 테이블 정의 위치 (현재 미구현)
+        ├── db_connect.py  # SQLite 연결·세션 제공
+        └── llm_connect.py # 외부 AI 통신 위치 (현재 미구현)
 ```
 
 ## 설치와 실행
@@ -40,6 +47,7 @@ Python 3.14가 없으면 uv의 기본 설정에서는 필요한 Python도 자동
 
 - 서버 상태: <http://127.0.0.1:8000/health>
 - API 문서: <http://127.0.0.1:8000/docs>
+- 화면 골격: <http://127.0.0.1:8000/login> (`/signup`, `/chat`, `/history`도 제공)
 
 `GET /health`의 정상 응답은 HTTP 200과 다음 JSON입니다.
 
@@ -48,7 +56,7 @@ Python 3.14가 없으면 uv의 기본 설정에서는 필요한 Python도 자동
 ```
 
 `/health`는 서버의 기본 응답 여부를 확인하며, DB나 외부 AI API의 연결 상태는 검사하지 않습니다.
-현재 `/` 경로는 구현하지 않았으므로 위 주소로 확인합니다.
+`/` 경로는 `/login`으로 이동합니다. 서버 시작 시 SQLite 연결도 확인합니다.
 개발 서버는 `Ctrl+C`로 종료합니다. `--reload`는 개발용 옵션입니다.
 
 애플리케이션 시작 메시지와 Uvicorn 접근·오류 로그는 콘솔과 실행 디렉터리의
@@ -68,8 +76,9 @@ uv add <패키지명>
 
 ## 환경 변수와 로컬 파일
 
-현재 서버 실행에 필요한 환경 변수는 없습니다.
-인증·AI 연동에서 환경 변수를 도입할 때 `.env.example`과 설정 설명을 추가합니다.
+필수 환경 변수는 없으며 `DATABASE_PATH`의 기본값은 `data/askmate.db`입니다.
+설정을 바꾸려면 `backend/.env.example`을 `.env`로 복사해 수정합니다.
+상대 DB 경로는 `backend/` 기준이며, 배포 환경에서 전달한 값이 `.env`보다 우선합니다.
 실제 `.env`, 가상환경, Python 캐시, 실행 중 생성되는 DB·로그 파일은 Git에서 제외합니다.
 
 ## 배포
@@ -84,3 +93,6 @@ GitHub Actions에서 Docker 이미지를 `2hynmin/codyssey-term`에 게시하고
 작업 브랜치는 최신 `develop`에서 생성하고, `작업 브랜치 → develop → main` 순서로
 PR과 팀원 리뷰를 거쳐 병합합니다.
 브랜치·커밋·리뷰·Issue 운영 기준은 [협업 컨벤션](docs/CONVENTIONS.md)을 참고하세요.
+
+영역별 작업 방법은 [프론트](docs/FRONTEND.md), [DB·기록](docs/DATABASE.md),
+[LLM](docs/LLM.md) 안내에 정리되어 있습니다.

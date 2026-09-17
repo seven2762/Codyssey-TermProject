@@ -52,8 +52,16 @@ AI API 키 등 런타임 비밀값이 필요한 경우 OCI 인스턴스의
 `/opt/askmate/.env`에 저장한다. 이 파일은 Git에 커밋하거나 GitHub Actions 로그에
 출력하지 않는다. 배포용 SSH 사용자가 파일을 읽을 수 있도록 최소 권한만 부여한다.
 
-SQLite 저장 경로와 볼륨 마운트는 DB 담당자와 경로를 합의한 뒤 별도 Issue에서
-추가한다. 현재 배포는 상태 확인 API를 제공하는 stateless 컨테이너만 대상으로 한다.
+SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이름 있는 Docker
+볼륨 `askmate-data`를 `/app/data`에 마운트하므로 컨테이너 교체 후에도 DB 파일을 유지한다.
+첫 실행 시 볼륨은 자동 생성되며, 이미지의 `/app/data`는 실행 사용자 UID 10001이 소유한다.
+기존 볼륨을 재사용한다면 UID 10001의 쓰기 권한을 확인한다. 운영 중 이 볼륨을 삭제하지 않는다.
+`DATABASE_PATH`를 지정한다면 `/app/data` 내부 경로를 사용한다. 다른 경로를 사용하려면
+해당 경로에도 영구 저장소와 쓰기 권한이 필요하다.
+
+현재는 DB 연결만 확인하며 계정·대화 테이블은 생성하지 않는다.
+향후 테이블 구조를 바꾸는 배포에서는 DB 백업과 스키마 호환성을 별도로 확인한다.
+이전 컨테이너로 롤백해도 공유 볼륨의 DB 내용까지 되돌아가지는 않는다.
 
 ## GitHub production 환경
 
@@ -98,7 +106,7 @@ GitHub `production` 환경에는 승인자를 지정해 `main` 병합과 실제 
 
 ```bash
 docker build -t askmate-backend:local backend
-docker run --rm -p 8000:8000 --name askmate-backend-local askmate-backend:local
+docker run --rm -p 8000:8000 --mount type=volume,source=askmate-data-local,target=/app/data --name askmate-backend-local askmate-backend:local
 ```
 
 다른 터미널에서 상태 확인 API를 호출한다.
@@ -108,6 +116,12 @@ curl --fail http://127.0.0.1:8000/health
 ```
 
 정상 응답은 `{"status":"ok"}`이다.
+
+화면은 `/login`, `/signup`, `/chat`, `/history`에서 확인한다.
+DB 영구 저장 검증은 위 테스트 전용 `askmate-data-local` 볼륨으로 진행한다.
+임시 확인용 테이블·레코드를 넣고 컨테이너만 종료한 뒤, 동일한 볼륨으로 다시 실행해
+기록이 남아 있는지 확인한다. 운영 볼륨 `askmate-data`에 검증 데이터를 넣지 않는다.
+서버 프로세스 재시작 검증과 Docker 컨테이너 교체 검증은 별개로 수행한다.
 
 ## 수동 재배포
 
