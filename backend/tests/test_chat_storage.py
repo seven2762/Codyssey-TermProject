@@ -57,7 +57,13 @@ def test_chat_saves_question_answer_and_utc_time(client, logged_in_user, ai_call
     chats = read_chats()
     assert len(chats) == 2
     assert [chat.question for chat in chats] == ["첫 질문입니다.\n다음 줄", "질" * 1000]
-    assert ai_calls == [(chat.question, []) for chat in chats]
+    assert ai_calls == [
+        (chats[0].question, []),
+        (chats[1].question, [
+            {"role": "user", "content": chats[0].question},
+            {"role": "assistant", "content": ANSWER},
+        ]),
+    ]
     for chat in chats:
         assert chat.user_id == logged_in_user["id"]
         assert chat.answer == ANSWER
@@ -167,6 +173,7 @@ def test_commit_failure_rolls_back_and_next_chat_works(client, logged_in_user, a
 
     assert client.post("/api/chat", json={"question": "next question"}).status_code == 200
     assert [chat.question for chat in read_chats()] == ["next question"]
+    assert ai_calls == [("failed question", []), ("next question", [])]
 
 
 def test_existing_user_db_gets_chats_and_records_survive_restart(application, tmp_path):

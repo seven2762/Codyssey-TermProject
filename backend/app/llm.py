@@ -20,7 +20,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import llm_connect
 from app.auth import get_current_user, require_csrf_header
-from app.chat_db import create_chat
+from app.chat_db import create_chat, get_recent_chats_by_user
 from app.db_connect import get_db
 from app.logger import logger
 from app.models.user import User
@@ -40,11 +40,24 @@ async def chat(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ):
-    """AI 답변을 받은 뒤 대화 기록을 저장하고 응답한다. 문맥 조회는 후속 구현한다."""
+    """최근 5쌍을 문맥으로 전달하고, AI 답변과 이번 질문을 저장한 뒤 응답한다."""
     user_id = user.id
     logger.info("request_received user_id=%s path=/api/chat", user_id)
     try:
-        answer = await llm_connect.generate_answer(payload.question, history=[])
+        chats = await run_in_threadpool(get_recent_chats_by_user, db, user_id)
+    except SQLAlchemyError:
+        logger.exception("db_read_failure operation=chat_context user_id=%s", user_id)
+        raise HTTPException(status_code=500, detail="최근 대화 기록을 불러오지 못했습니다.") from None
+
+    history: list[dict[str, str]] = []
+    for chat in chats:
+        history.extend([
+            {"role": "user", "content": chat.question},
+            {"role": "assistant", "content": chat.answer},
+        ])
+
+    try:
+        answer = await llm_connect.generate_answer(payload.question, history=history)
     except NotImplementedError:
         raise HTTPException(status_code=501, detail="AI 연결이 아직 구현되지 않았습니다.") from None
 
