@@ -8,6 +8,12 @@
    업데이트  : 2026/09/20
 
    설명     : 로그인 사용자의 AI 질문 처리와 대화 기록 저장
+
+   역할 분담
+   - A: 인증·입력 검증, 최근 문맥 조회, 대화 저장, HTTP 응답 및 요청·DB 로그.
+   - B: llm_connect.py의 AI 통신을 구현하고, 이 파일에 통신 예외의 HTTP 변환을 연결한다.
+     타임아웃은 504, AI 호출 실패는 502와 사용자용 안내 메시지로 반환한다.
+   - AI 키·모델·타임아웃 설정과 AI 호출·성공·실패 로그는 B의 통신 모듈에서 담당한다.
 """
 
 from typing import Annotated
@@ -56,6 +62,8 @@ async def chat(
             {"role": "assistant", "content": chat.answer},
         ])
 
+    # B 연동 작업: 통신 모듈의 타임아웃·호출 실패 예외를 여기서 HTTP 504·502로 변환한다.
+    # 현재는 AI 미구현 상태의 501만 처리한다. 기존 문맥 조회·저장 흐름은 유지한다.
     try:
         answer = await llm_connect.generate_answer(payload.question, history=history)
     except NotImplementedError:
