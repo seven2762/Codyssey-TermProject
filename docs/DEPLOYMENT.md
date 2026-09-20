@@ -59,14 +59,25 @@ sudo ufw allow in on tailscale0 to any port 22 proto tcp
 sudo ufw allow in on tailscale0 to any port 8000 proto tcp
 ```
 
-OCI 인스턴스의 `/opt/askmate/.env`에 `SESSION_SECRET_KEY`를 반드시 설정한다.
-로그인 기능 배포 전 이 파일을 준비해야 하며, 키가 없으면 앱이 시작하지 않아 상태 확인에 실패한다.
-키 생성법과 세션 설정은 [계정·세션 인증 안내](AUTH.md)를 따른다.
-동일한 키를 재배포에도 유지하고, 브라우저가 HTTPS로 접근하는 배포에서는
-`SESSION_HTTPS_ONLY=true`를 설정한다. 현재 문서의 Tailscale IP 직접 HTTP 접근에서는 false를 사용한다.
+### 애플리케이션 환경 변수 전달
+
+`SESSION_SECRET_KEY`가 없으면 앱이 시작하지 않아 상태 확인에 실패한다.
+이 값은 서버에 직접 두지 않고 GitHub `production` 환경 Secrets에서 전달한다.
+
+배포는 `Upload application environment to OCI` 단계에서 값을 SSH **표준 입력**으로만 보내
+`~/.askmate-deploy.env`에 권한 `600`으로 저장한다. 값이 원격 프로세스 목록이나 Actions 로그에
+남지 않는다. `docker run`이 이 파일을 읽은 뒤 원격 스크립트가 파일을 삭제한다.
+
+서버의 `/opt/askmate/.env`도 계속 지원한다. 두 파일이 모두 있으면 서버 파일을 먼저 적용하고
+워크플로가 전달한 값으로 덮어쓴다. 팀원이 서버에서 직접 실험할 때 이 파일을 쓸 수 있다.
+
+동일한 `SESSION_SECRET_KEY`를 유지해야 재배포 후에도 기존 로그인 세션이 유지된다.
+Secret 값을 바꾸면 모든 세션이 무효가 된다.
+브라우저가 HTTPS로 접근하는 배포에서는 `SESSION_HTTPS_ONLY` Variable을 `true`로 설정한다.
+현재 문서의 Tailscale IP 직접 HTTP 접근에서는 `false`를 사용한다.
 쿠키 설정만으로 HTTPS가 제공되지는 않으며, 외부 공개 시에는 HTTPS 접속 경로를 마련한다.
-AI API 키도 이후 이 파일에 추가한다. 이 파일은 Git에 커밋하거나 GitHub Actions 로그에
-출력하지 않는다. 배포용 SSH 사용자가 파일을 읽을 수 있도록 최소 권한만 부여한다.
+AI 제공자 키도 이후 같은 방식으로 `production` 환경 Secrets에 추가한다.
+실제 키는 Git에 커밋하지 않는다.
 
 SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이름 있는 Docker
 볼륨 `askmate-data`를 `/app/data`에 마운트하므로 컨테이너 교체 후에도 DB 파일을 유지한다.
@@ -94,6 +105,13 @@ SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이�
 | `OCI_SSH_KNOWN_HOSTS` | 검증한 OCI SSH host key 한 줄 |
 | `TS_OAUTH_CLIENT_ID` | Tailscale Workload Identity Federation Client ID |
 | `TS_AUDIENCE` | Tailscale Workload Identity Federation Audience |
+| `SESSION_SECRET_KEY` | 세션 쿠키 서명키. 아래 명령으로 생성한 값을 등록한다 |
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+세션 설정의 의미는 [계정·세션 인증 안내](AUTH.md)를 따른다.
 
 `OCI_SSH_KNOWN_HOSTS`는 신뢰할 수 있는 환경에서 아래 명령으로 얻고, OCI에서 확인한
 host key fingerprint와 일치하는지 검증한 뒤 등록한다.
@@ -113,6 +131,11 @@ Tailnet 접근 정책은 `tag:ci`에서 이 OCI 인스턴스의 SSH 포트로 �
 | --- | --- | --- |
 | `OCI_SSH_PORT` | `22` | OCI SSH 포트 |
 | `OCI_APP_PORT` | `8000` | OCI의 Tailscale IPv4 주소에 게시할 애플리케이션 포트 |
+| `SESSION_MAX_AGE` | `3600` | 로그인 후 세션 유효기간(초). 양의 정수 |
+| `SESSION_HTTPS_ONLY` | `false` | HTTPS 배포에서만 `true`로 설정 |
+
+`SESSION_MAX_AGE`와 `SESSION_HTTPS_ONLY`는 배포 전에 형식을 검증한다.
+잘못된 값이면 컨테이너를 교체하기 전에 워크플로가 실패한다.
 
 GitHub `production` 환경에는 승인자를 지정해 실제 배포 앞에 수동 승인 단계를 둘 수
 있다. 다만 현재는 PR 단계에서도 배포하므로, 승인자를 지정하면 모든 PR이 승인을 기다린다.
