@@ -6,19 +6,30 @@ OCI Compute 인스턴스에서 해당 이미지를 실행한다.
 
 ## 배포 흐름
 
-1. `develop` 대상 PR에서는 Docker 이미지가 빌드되는지만 검증한다.
-2. 검증된 `develop`을 `main`에 병합하면 다중 아키텍처 이미지를 Docker Hub에 게시한다.
+1. `develop`·`main` 대상 PR에서 이미지를 게시하고 OCI에 실제로 배포한다.
+2. 이 배포 잡이 통과해야 PR을 머지한다. 배포가 실패하면 머지하지 않는다.
 3. GitHub Actions 러너가 `tag:ci` Tailscale 임시 노드로 접속한다.
 4. 러너가 OCI의 Tailscale IP로 SSH 접속해 새 컨테이너를 시작한다.
 5. Docker 상태 확인이 실패하면 직전 컨테이너를 다시 시작한다.
+6. 머지된 `develop`을 `main`에 병합하면 같은 절차로 다시 배포한다.
 
-이미지는 다음 두 태그로 게시한다.
+릴리스 서버가 아닌 검증용 서버이므로 머지 전 PR 코드가 OCI에서 동작한다.
+OCI 컨테이너는 하나뿐이므로 `oci-production` 동시성 그룹이 배포를 순서대로 실행하며,
+여러 PR이 동시에 열려 있으면 가장 마지막에 성공한 배포의 코드가 서버에 남는다.
 
-- `2hynmin/codyssey-term:latest`
-- `2hynmin/codyssey-term:sha-<Git 커밋 SHA>`
+이미지 태그는 실행 유형에 따라 다르다.
 
-OCI에는 변경 불가능한 커밋 SHA 태그를 배포한다. `latest`는 사람이 최신 이미지를
-확인하거나 수동으로 실행할 때 사용한다.
+| 실행 유형 | 게시 태그 |
+| --- | --- |
+| `develop`·`main` 대상 PR | `sha-<PR head 커밋 SHA>`, `pr-<PR 번호>` |
+| `main` 푸시·수동 실행 | `sha-<Git 커밋 SHA>`, `latest` |
+
+OCI에는 항상 변경 불가능한 `sha-` 태그를 배포한다. `latest`는 사람이 최신 이미지를
+확인하거나 수동으로 실행할 때 사용하므로 검증 중인 PR 이미지가 덮어쓰지 않는다.
+`pull_request`의 `github.sha`는 임시 병합 커밋이므로 태그에는 PR의 head 커밋 SHA를 쓴다.
+
+포크에서 올린 PR은 `production` 환경 Secrets를 받지 못해 배포할 수 없다.
+이 경우에는 이미지를 게시하지 않고 빌드 가능 여부만 확인하는 잡이 대신 실행된다.
 
 ## OCI 사전 준비
 
@@ -48,14 +59,25 @@ sudo ufw allow in on tailscale0 to any port 22 proto tcp
 sudo ufw allow in on tailscale0 to any port 8000 proto tcp
 ```
 
-OCI 인스턴스의 `/opt/askmate/.env`에 `SESSION_SECRET_KEY`를 반드시 설정한다.
-로그인 기능 배포 전 이 파일을 준비해야 하며, 키가 없으면 앱이 시작하지 않아 상태 확인에 실패한다.
-키 생성법과 세션 설정은 [계정·세션 인증 안내](AUTH.md)를 따른다.
-동일한 키를 재배포에도 유지하고, 브라우저가 HTTPS로 접근하는 배포에서는
-`SESSION_HTTPS_ONLY=true`를 설정한다. 현재 문서의 Tailscale IP 직접 HTTP 접근에서는 false를 사용한다.
+### 애플리케이션 환경 변수 전달
+
+`SESSION_SECRET_KEY`가 없으면 앱이 시작하지 않아 상태 확인에 실패한다.
+이 값은 서버에 직접 두지 않고 GitHub `production` 환경 Secrets에서 전달한다.
+
+배포는 `Upload application environment to OCI` 단계에서 값을 SSH **표준 입력**으로만 보내
+`~/.askmate-deploy.env`에 권한 `600`으로 저장한다. 값이 원격 프로세스 목록이나 Actions 로그에
+남지 않는다. `docker run`이 이 파일을 읽은 뒤 원격 스크립트가 파일을 삭제한다.
+
+서버의 `/opt/askmate/.env`도 계속 지원한다. 두 파일이 모두 있으면 서버 파일을 먼저 적용하고
+워크플로가 전달한 값으로 덮어쓴다. 팀원이 서버에서 직접 실험할 때 이 파일을 쓸 수 있다.
+
+동일한 `SESSION_SECRET_KEY`를 유지해야 재배포 후에도 기존 로그인 세션이 유지된다.
+Secret 값을 바꾸면 모든 세션이 무효가 된다.
+브라우저가 HTTPS로 접근하는 배포에서는 `SESSION_HTTPS_ONLY` Variable을 `true`로 설정한다.
+현재 문서의 Tailscale IP 직접 HTTP 접근에서는 `false`를 사용한다.
 쿠키 설정만으로 HTTPS가 제공되지는 않으며, 외부 공개 시에는 HTTPS 접속 경로를 마련한다.
-AI API 키도 이후 이 파일에 추가한다. 이 파일은 Git에 커밋하거나 GitHub Actions 로그에
-출력하지 않는다. 배포용 SSH 사용자가 파일을 읽을 수 있도록 최소 권한만 부여한다.
+AI 제공자 키도 이후 같은 방식으로 `production` 환경 Secrets에 추가한다.
+실제 키는 Git에 커밋하지 않는다.
 
 SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이름 있는 Docker
 볼륨 `askmate-data`를 `/app/data`에 마운트하므로 컨테이너 교체 후에도 DB 파일을 유지한다.
@@ -83,6 +105,13 @@ SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이�
 | `OCI_SSH_KNOWN_HOSTS` | 검증한 OCI SSH host key 한 줄 |
 | `TS_OAUTH_CLIENT_ID` | Tailscale Workload Identity Federation Client ID |
 | `TS_AUDIENCE` | Tailscale Workload Identity Federation Audience |
+| `SESSION_SECRET_KEY` | 세션 쿠키 서명키. 아래 명령으로 생성한 값을 등록한다 |
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+세션 설정의 의미는 [계정·세션 인증 안내](AUTH.md)를 따른다.
 
 `OCI_SSH_KNOWN_HOSTS`는 신뢰할 수 있는 환경에서 아래 명령으로 얻고, OCI에서 확인한
 host key fingerprint와 일치하는지 검증한 뒤 등록한다.
@@ -102,9 +131,14 @@ Tailnet 접근 정책은 `tag:ci`에서 이 OCI 인스턴스의 SSH 포트로 �
 | --- | --- | --- |
 | `OCI_SSH_PORT` | `22` | OCI SSH 포트 |
 | `OCI_APP_PORT` | `8000` | OCI의 Tailscale IPv4 주소에 게시할 애플리케이션 포트 |
+| `SESSION_MAX_AGE` | `3600` | 로그인 후 세션 유효기간(초). 양의 정수 |
+| `SESSION_HTTPS_ONLY` | `false` | HTTPS 배포에서만 `true`로 설정 |
 
-GitHub `production` 환경에는 승인자를 지정해 `main` 병합과 실제 배포 사이에 수동
-승인 단계를 둘 수 있다.
+`SESSION_MAX_AGE`와 `SESSION_HTTPS_ONLY`는 배포 전에 형식을 검증한다.
+잘못된 값이면 컨테이너를 교체하기 전에 워크플로가 실패한다.
+
+GitHub `production` 환경에는 승인자를 지정해 실제 배포 앞에 수동 승인 단계를 둘 수
+있다. 다만 현재는 PR 단계에서도 배포하므로, 승인자를 지정하면 모든 PR이 승인을 기다린다.
 
 ## 로컬 Docker 검증
 
@@ -135,3 +169,5 @@ DB 영구 저장 검증은 위 테스트 전용 `askmate-data-local` 볼륨으�
 자동 배포가 실패하지 않았는데 다시 실행해야 한다면 GitHub Actions의
 `Docker CI and OCI deploy` workflow를 `main` 브랜치에서 수동 실행한다. 다른
 브랜치에서 수동 실행하면 이미지를 빌드하거나 OCI에 배포하지 않는다.
+
+PR 배포로 서버에 남은 코드를 되돌리려면 `main`에서 이 workflow를 수동 실행한다.
