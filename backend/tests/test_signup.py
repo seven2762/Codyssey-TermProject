@@ -158,5 +158,9 @@ def test_users_survive_app_restart(application, csrf_headers):
 def test_existing_pages_and_chat_validation(client):
     for path in ["/health", "/docs", "/openapi.json", "/signup", "/static/css/style.css"]:
         assert client.get(path).status_code == 200
+    assert client.post("/api/chat", json={"question": "hello"}).status_code == 401
+    credentials = {"username": "chat_user", "password": PASSWORD}
+    assert client.post("/api/signup", json=credentials).status_code == 201
+    assert client.post("/api/login", json=credentials).status_code == 200
     assert client.post("/api/chat", json={"question": "hello"}).status_code == 501
     assert client.post("/api/chat", json={"question": " "}).status_code == 422
