@@ -1,13 +1,12 @@
 name: Docker CI and OCI deploy
 
 on:
+  # 배포 성공을 머지 조건으로 요구하므로 paths로 실행을 건너뛰지 않는다.
+  # 건너뛴 검사는 보고되지 않아 PR이 영구 대기 상태가 된다.
   pull_request:
     branches:
       - develop
       - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/deploy-oci.yml"
   push:
     branches:
       - main
