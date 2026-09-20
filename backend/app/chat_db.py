@@ -29,3 +29,16 @@ def get_chats_by_user(db: Session, user_id: int) -> list[Chat]:
         .order_by(Chat.created_at.desc(), Chat.id.desc())
     )
     return list(db.scalars(statement))
+
+
+def get_recent_chats_by_user(db: Session, user_id: int) -> list[Chat]:
+    """AI 문맥용 최근 5쌍을 조회하고 생성 시각·ID 오름차순으로 반환한다."""
+    statement = (
+        select(Chat)
+        .where(Chat.user_id == user_id)
+        .order_by(Chat.created_at.desc(), Chat.id.desc())
+        .limit(5)
+    )
+    chats = list(db.scalars(statement))
+    chats.reverse()
+    return chats
