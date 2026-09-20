@@ -17,10 +17,11 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 # 자체 제작 모듈
 from app.logger import logger
-from app.config import APP_DIR
+from app.config import APP_DIR, SESSION_HTTPS_ONLY, SESSION_MAX_AGE, SESSION_SECRET_KEY
 from app.db_connect import engine, init_db
 
 # 앱 라우터
@@ -44,6 +45,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AskMate", lifespan=lifespan)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    session_cookie="askmate_session",
+    max_age=SESSION_MAX_AGE,
+    same_site="lax",
+    https_only=SESSION_HTTPS_ONLY,
+)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 app.include_router(pages_router)
 app.include_router(account_router, prefix="/api")

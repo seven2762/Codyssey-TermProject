@@ -48,8 +48,13 @@ sudo ufw allow in on tailscale0 to any port 22 proto tcp
 sudo ufw allow in on tailscale0 to any port 8000 proto tcp
 ```
 
-AI API 키 등 런타임 비밀값이 필요한 경우 OCI 인스턴스의
-`/opt/askmate/.env`에 저장한다. 이 파일은 Git에 커밋하거나 GitHub Actions 로그에
+OCI 인스턴스의 `/opt/askmate/.env`에 `SESSION_SECRET_KEY`를 반드시 설정한다.
+로그인 기능 배포 전 이 파일을 준비해야 하며, 키가 없으면 앱이 시작하지 않아 상태 확인에 실패한다.
+키 생성법과 세션 설정은 [계정·세션 인증 안내](AUTH.md)를 따른다.
+동일한 키를 재배포에도 유지하고, 브라우저가 HTTPS로 접근하는 배포에서는
+`SESSION_HTTPS_ONLY=true`를 설정한다. 현재 문서의 Tailscale IP 직접 HTTP 접근에서는 false를 사용한다.
+쿠키 설정만으로 HTTPS가 제공되지는 않으며, 외부 공개 시에는 HTTPS 접속 경로를 마련한다.
+AI API 키도 이후 이 파일에 추가한다. 이 파일은 Git에 커밋하거나 GitHub Actions 로그에
 출력하지 않는다. 배포용 SSH 사용자가 파일을 읽을 수 있도록 최소 권한만 부여한다.
 
 SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이름 있는 Docker
@@ -59,7 +64,7 @@ SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이�
 `DATABASE_PATH`를 지정한다면 `/app/data` 내부 경로를 사용한다. 다른 경로를 사용하려면
 해당 경로에도 영구 저장소와 쓰기 권한이 필요하다.
 
-현재는 DB 연결만 확인하며 계정·대화 테이블은 생성하지 않는다.
+현재는 DB 연결을 확인하고 `users` 테이블을 생성한다. 대화 테이블은 아직 생성하지 않는다.
 향후 테이블 구조를 바꾸는 배포에서는 DB 백업과 스키마 호환성을 별도로 확인한다.
 이전 컨테이너로 롤백해도 공유 볼륨의 DB 내용까지 되돌아가지는 않는다.
 
@@ -106,7 +111,7 @@ GitHub `production` 환경에는 승인자를 지정해 `main` 병합과 실제 
 
 ```bash
 docker build -t askmate-backend:local backend
-docker run --rm -p 8000:8000 --mount type=volume,source=askmate-data-local,target=/app/data --name askmate-backend-local askmate-backend:local
+docker run --rm -p 8000:8000 --env-file backend/.env --mount type=volume,source=askmate-data-local,target=/app/data --name askmate-backend-local askmate-backend:local
 ```
 
 다른 터미널에서 상태 확인 API를 호출한다.
@@ -117,7 +122,8 @@ curl --fail http://127.0.0.1:8000/health
 
 정상 응답은 `{"status":"ok"}`이다.
 
-화면은 `/login`, `/signup`, `/chat`, `/history`에서 확인한다.
+`backend/.env`에 로컬 테스트용 키를 먼저 설정한다. 기본 DB 경로는 볼륨의 `/app/data/askmate.db`이다.
+화면은 `/login`, `/signup`, `/chat`, `/history`에서 확인한다. `/chat`, `/history`는 로그인 후 접근한다.
 DB 영구 저장 검증은 위 테스트 전용 `askmate-data-local` 볼륨으로 진행한다.
 임시 확인용 테이블·레코드를 넣고 컨테이너만 종료한 뒤, 동일한 볼륨으로 다시 실행해
 기록이 남아 있는지 확인한다. 운영 볼륨 `askmate-data`에 검증 데이터를 넣지 않는다.

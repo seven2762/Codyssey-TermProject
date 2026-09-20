@@ -1,8 +1,8 @@
 # AskMate - 로그인 기반 범용 AI 챗봇 프로젝트
 
 로그인한 사용자가 AI와 대화하고 자신의 대화 기록을 조회하는 웹 서비스입니다.
-현재는 FastAPI 실행 환경, Jinja2 화면 골격, SQLite 사용자 테이블, 회원가입 API와 LLM 통신 골격까지 구현되어 있습니다.
-로그인·세션 인증·실제 AI 호출·대화 저장 및 조회는 아직 구현되지 않았습니다.
+현재는 Jinja2 화면 골격, SQLite 사용자 테이블, 회원가입·로그인·세션 인증과 LLM 통신 골격까지 구현되어 있습니다.
+로그인 폼 등 화면 연동·실제 AI 호출·대화 저장 및 조회는 아직 구현되지 않았습니다.
 
 ## 개발 환경
 
@@ -26,9 +26,10 @@
         ├── pages.py       # Jinja2 화면 경로
         ├── templates/     # 화면 HTML
         ├── static/        # CSS·JavaScript·이미지
-        ├── account.py     # 회원가입 요청·응답 모델과 API
-        ├── account_db.py  # 사용자 저장
-        ├── security.py    # 비밀번호 해시
+        ├── account.py     # 회원가입·로그인·로그아웃·현재 사용자 API
+        ├── account_db.py  # 사용자 저장·조회
+        ├── auth.py        # 공통 세션 인증·POST 헤더 검사
+        ├── security.py    # 비밀번호 해시·검증
         ├── models/        # 사용자 테이블, 대화 테이블 골격
         ├── db_connect.py  # SQLite 연결·세션 제공
         └── llm_connect.py # 외부 AI 통신 위치 (현재 미구현)
@@ -41,6 +42,7 @@
 ```bash
 cd backend
 uv sync
+# 최초 실행 전에 아래 '환경 변수와 로컬 파일'의 비밀키 설정을 완료합니다.
 uv run uvicorn app.main:app --reload
 ```
 
@@ -79,10 +81,14 @@ uv add <패키지명>
 
 ## 환경 변수와 로컬 파일
 
-필수 환경 변수는 없으며 `DATABASE_PATH`의 기본값은 `data/askmate.db`입니다.
-설정을 바꾸려면 `backend/.env.example`을 `.env`로 복사해 수정합니다.
+`SESSION_SECRET_KEY`는 필수입니다. 최초 실행 시 `backend/.env.example`을 `.env`로 복사하고,
+`uv run python -c "import secrets; print(secrets.token_urlsafe(32))"`로 생성한 값을 넣습니다.
+기존 `.env`가 있다면 덮어쓰지 말고 설정만 추가합니다. 기본 세션 유효기간은 1시간이며,
+HTTPS 배포에서는 `SESSION_HTTPS_ONLY=true`를 설정합니다.
+`DATABASE_PATH`의 기본값은 `data/askmate.db`입니다.
 상대 DB 경로는 `backend/` 기준이며, 배포 환경에서 전달한 값이 `.env`보다 우선합니다.
 실제 `.env`, 가상환경, Python 캐시, 실행 중 생성되는 DB·로그 파일은 Git에서 제외합니다.
+API 사용법과 세션 정책은 [계정·세션 인증 안내](docs/AUTH.md)를 참고하세요.
 
 ## 배포
 

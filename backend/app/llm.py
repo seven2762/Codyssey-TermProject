@@ -12,11 +12,13 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, StringConstraints
 
 from app import llm_connect
+from app.auth import get_current_user, require_csrf_header
 from app.logger import logger
+from app.models.user import User
 
 router = APIRouter()
 
@@ -27,10 +29,10 @@ class ChatRequest(BaseModel):
     ]
 
 
-@router.post("/chat")
-async def chat(payload: ChatRequest):
-    """통신 경계만 연결한 골격. 인증·기록 조회·저장은 후속 구현한다."""
-    logger.info("request_received path=/api/chat")
+@router.post("/chat", dependencies=[Depends(require_csrf_header)])
+async def chat(payload: ChatRequest, user: Annotated[User, Depends(get_current_user)]):
+    """로그인한 사용자만 AI 연결을 호출한다. 기록 조회·저장은 후속 구현한다."""
+    logger.info("request_received user_id=%s path=/api/chat", user.id)
     try:
         answer = await llm_connect.generate_answer(payload.question, history=[])
     except NotImplementedError:

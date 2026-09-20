@@ -4,15 +4,16 @@
 
 SQLite + SQLAlchemy 2.x의 동기 방식으로 구현한다. 각 개발자는 로컬 DB 파일을 사용한다.
 서버 시작 시 디렉터리·DB 파일을 준비하고 연결을 확인한 뒤 `users` 테이블을 생성한다.
-회원가입 API에서 사용자 저장까지 구현되어 있다. 대화 테이블과 저장·조회 기능은 아직 없다.
+회원가입의 사용자 저장과 로그인·세션의 사용자 조회가 구현되어 있다. 대화 테이블과 저장·조회 기능은 아직 없다.
 
 | 파일 | 담당과 역할 |
 | --- | --- |
 | `backend/app/config.py` | A: 공통 환경변수와 경로 |
 | `backend/app/db_connect.py` | A: engine, Base, 요청별 `get_db()` 세션 제공 |
 | `backend/app/models/user.py` | A: 사용자 테이블 |
-| `backend/app/account_db.py` | 사용자 저장, commit·rollback, 생성된 ID 반환 |
-| `backend/app/security.py` | Argon2 비밀번호 해시 |
+| `backend/app/account_db.py` | 사용자 저장·조회, 쓰기 시 commit·rollback |
+| `backend/app/auth.py` | 세션의 사용자 조회와 로그인 필수 검사 |
+| `backend/app/security.py` | Argon2 비밀번호 해시·검증 |
 | `backend/app/models/chat.py` | D: 대화 기록 테이블 |
 | `backend/app/history.py` | D: 본인 기록 조회 API |
 | `backend/app/templates/history.html` | D: 기록 목록 화면. C의 공통 스타일 사용 |
@@ -23,10 +24,11 @@ SQLite는 별도 DB 서버 설치가 필요하지 않다. `uv sync`로 SQLAlchem
 
 ## DB 위치와 설정
 
-선택적으로 `backend/.env.example`을 `backend/.env`로 복사한다.
+`backend/.env.example`을 `backend/.env`로 복사하고 `SESSION_SECRET_KEY`를 설정한다.
+기존 `.env`는 덮어쓰지 않는다. [계정·세션 인증 안내](AUTH.md) 참고.
 `DATABASE_PATH=data/askmate.db`가 기본값이며, 상대 경로는 항상 `backend/` 기준이다.
 쉘 또는 배포 환경에서 주입한 값이 `.env`보다 우선한다. 변경 후 서버를 재시작한다.
-환경변수 없이도 기본 경로로 실행된다.
+`DATABASE_PATH`를 생략하면 기본 DB 경로를 사용하지만, `SESSION_SECRET_KEY`는 필수이다.
 
 `backend/`에서 연결만 확인하는 명령:
 
@@ -63,9 +65,10 @@ UTC로 해석하여 `Z` 또는 `+00:00`이 포함된 ISO 8601 문자열로 변�
 테이블 생성 시 모든 모델이 먼저 import되어야 한다. `Base.metadata.create_all()`은
 기존 테이블의 구조를 변경해주지 않으므로 필드 변경은 A와 함께 초기화·마이그레이션 방법을 정한다.
 
-API는 A가 제공할 현재 로그인 사용자와 `Depends(get_db)`를 사용한다.
+API는 `Depends(get_current_user)`와 `Depends(get_db)`를 사용한다.
+`get_current_user`는 `app.auth`에서 가져오며 반환된 `User`의 `id`를 조회 조건에 사용한다.
 클라이언트가 보낸 사용자 ID를 신뢰하지 않고 서버에서 확인한 사용자로 필터링한다.
-현재 인증 기능은 미구현이므로 전체 사용자 기록을 공개하는 임시 API는 만들지 않는다.
+로그인 세션은 서명 쿠키로 처리하므로 추가 세션 테이블이나 users 필드 변경은 없다.
 
 성공 응답 규격은 다음과 같다. 기록이 없으면 `[]`를 반환한다.
 
@@ -86,7 +89,7 @@ AI 호출을 기다리는 동안 쓰기 트랜잭션을 유지하지 않는다.
 - 실행 검증은 임시 DB로 수행하고 다른 팀원의 데이터나 운영 DB를 초기화하지 않는다.
 - `feature/chat-history`에서 작업하고 `develop` 대상으로 PR을 작성한다.
 
-## 회원가입 자동 검증
+## 계정·세션 자동 검증
 
 `backend/`에서 실행한다. `uv sync`는 개발용 테스트 도구도 함께 설치한다.
 
@@ -96,7 +99,7 @@ uv run python -m pytest -q
 ```
 
 테스트는 임시 DB와 임시 로그 디렉터리를 사용한다. 정상 가입, 입력 검증, 중복·동시 가입,
-해시 저장, DB 오류 시 rollback, 재시작 후 데이터 유지와 기존 경로를 확인한다.
+해시 저장, DB 오류 시 rollback, 로그인·로그아웃·쿠키와 접근 제어, 재시작 후 데이터 유지를 확인한다.
 
 현재 Starlette 1.6.0의 TestClient 내부에서 AnyIO `BlockingPortal` 별칭의 폐기 예정 경고가
 발생한다. 테스트용 HTTP 도구는 공식 권장인 `httpx2`를 사용하며, 이 경고를 숨기지는 않는다.

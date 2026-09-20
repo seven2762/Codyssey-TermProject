@@ -14,7 +14,7 @@ Jinja2 + HTML/CSS/기본 JavaScript를 사용한다. FastAPI가 화면과 API를
 | `backend/app/static/css/style.css` | 공통 스타일 |
 | `backend/app/static/js/main.js` | 화면 이벤트·API 호출. 기능이 늘면 화면별 JS로 분리 가능 |
 | `backend/app/static/images/` | 이미지 |
-| `backend/app/pages.py` | 화면을 반환하는 경로. 인증 연결은 A 담당 |
+| `backend/app/pages.py` | 화면 경로와 로그인 상태에 따른 이동 |
 
 `history.html`의 기록 목록 구현은 D 담당이다. C는 공통 레이아웃과 스타일을 제공한다.
 각 HTML은 `base.html`을 상속하고 `title`, `content` 블록을 채운다.
@@ -26,12 +26,14 @@ Jinja2 + HTML/CSS/기본 JavaScript를 사용한다. FastAPI가 화면과 API를
 ```bash
 cd backend
 uv sync
+# 최초 실행: .env.example을 .env로 복사하고 SESSION_SECRET_KEY 설정 (아래 인증 안내 참고)
 uv run uvicorn app.main:app --reload
 ```
 
 브라우저에서 `http://127.0.0.1:8000/login`에 접속한다.
-`/signup`, `/chat`, `/history`도 현재는 안내 문구가 있는 빈 화면이다.
+화면은 현재 안내 문구가 있는 골격이다. `/chat`, `/history`는 로그인 후에만 접근할 수 있다.
 HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
+[계정·세션 인증 안내](AUTH.md)의 `.env` 설정을 먼저 완료한다.
 
 ## 구현 순서와 API 약속
 
@@ -41,14 +43,16 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 
 화면 경로는 `/login`처럼 사용하고, 데이터 요청은 `/api/*`로 보낸다.
 요청 본문은 JSON이며 `Content-Type: application/json`을 지정한다.
+모든 POST 요청에 `X-Requested-With: XMLHttpRequest` 헤더를 추가한다. 누락·다른 값은 403이다.
 다음 표는 후속 구현의 공통 규격이며 현재 전부 구현된 API 목록이 아니다.
 
 | API | 요청 | 성공 응답 | 현재 상태 |
 | --- | --- | --- | --- |
 | `POST /api/signup` | `{"username":"...","password":"..."}` | 201, `{"id":1,"username":"..."}` | 구현 완료, SQLite에 사용자 저장 |
-| `POST /api/login` | `{"username":"...","password":"..."}` | 200, `{"id":1,"username":"..."}` + 세션 쿠키 | A 구현 예정, 현재 404 |
-| `POST /api/logout` | 본문 없음 | 204, 본문 없음 | A 구현 예정, 현재 404 |
-| `POST /api/chat` | `{"question":"..."}` | 200, `{"answer":"..."}` | 연결 골격만 있음, 정상 입력도 현재 501 |
+| `POST /api/login` | `{"username":"...","password":"..."}` | 200, `{"id":1,"username":"..."}` + 세션 쿠키 | 구현 완료 |
+| `GET /api/me` | 본문 없음 | 200, `{"id":1,"username":"..."}` | 구현 완료, 비로그인은 401 |
+| `POST /api/logout` | 본문 없음 | 204, 본문 없음 | 구현 완료 |
+| `POST /api/chat` | `{"question":"..."}` | 200, `{"answer":"..."}` | 로그인 필요, AI 연결 미구현으로 정상 입력은 현재 501 |
 | `GET /api/me/chats` | 본문 없음 | 200, 기록 배열. [DB 안내](DATABASE.md) 참고 | D 구현 예정, 현재 404 |
 
 비밀번호 확인은 가입 화면에서 입력값을 비교하며 요청에는 `username`, `password`만 보낸다.
@@ -68,13 +72,38 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 ```bash
 curl -i http://127.0.0.1:8000/api/signup \
   -H 'Content-Type: application/json' \
+  -H 'X-Requested-With: XMLHttpRequest' \
   -d '{"username":"demo_user","password":"example password phrase"}'
 ```
 
-인증은 A가 서명된 HttpOnly 세션 쿠키로 구현한다. 토큰을 localStorage에 저장하는 구조를 만들지 않는다.
+인증은 서명된 HttpOnly 세션 쿠키로 구현되어 있다. 토큰을 localStorage에 저장하지 않는다.
 같은 서버의 상대 URL로 요청하고, 사용자 ID를 요청에 넣어 인증을 대신하지 않는다.
-인증 도입 후 `/chat`·`/history` 화면과 채팅·기록 API에는 로그인 제한을 적용한다.
-현재 화면은 인증 연결 전의 골격이므로 화면 접근이 된다고 로그인에 성공한 것은 아니다.
+`/chat`·`/history` 화면과 채팅 API에는 로그인 제한이 적용되어 있다. 기록 API는 추후 같은 검사를 연결한다.
+로그인은 아래처럼 호출한다. `username`, `password`는 폼에서 읽은 값이다.
+
+```javascript
+const response = await fetch("/api/login", {
+    method: "POST",
+    headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+    },
+    body: JSON.stringify({ username, password }),
+});
+const data = await response.json();
+if (response.ok) {
+    window.location.assign("/chat");
+} else {
+    // data.detail로 폼의 오류 메시지를 표시한다. 422이면 배열이다.
+}
+```
+
+같은 출처의 fetch에는 브라우저가 쿠키를 자동으로 전송한다. JavaScript에서 쿠키를 읽을 필요가 없다.
+로그인 비밀번호는 1~128자를 받으며, 가입 화면의 15자 최소 조건을 로그인 화면에 적용하지 않는다.
+잘못된 사용자명과 비밀번호는 모두 401과 같은 안내를 반환한다.
+`GET /api/me`는 현재 사용자 표시용이다. 보호된 API의 401은 로그인 화면으로 안내한다.
+로그아웃은 공통 헤더와 함께 `POST /api/logout`을 보내고, 성공하면 `/login`으로 이동한다.
+204에서는 JSON을 파싱하지 않는다. 화면 폼·버튼의 실제 연결은 프론트 작업으로 진행한다.
 
 에러는 `response.ok`로 먼저 구분한다. 기본 오류 본문은 `{"detail": ...}`이며,
 입력 검증 오류(422)의 `detail`은 배열일 수 있다. 사용자에게 읽을 수 있는 안내를 표시한다.
