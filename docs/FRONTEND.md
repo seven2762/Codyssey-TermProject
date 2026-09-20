@@ -45,13 +45,32 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 
 | API | 요청 | 성공 응답 | 현재 상태 |
 | --- | --- | --- | --- |
-| `POST /api/signup` | `{"username":"...","password":"..."}` | 201, `{"id":1,"username":"..."}` | A 구현 예정, 현재 404 |
+| `POST /api/signup` | `{"username":"...","password":"..."}` | 201, `{"id":1,"username":"..."}` | 구현 완료, SQLite에 사용자 저장 |
 | `POST /api/login` | `{"username":"...","password":"..."}` | 200, `{"id":1,"username":"..."}` + 세션 쿠키 | A 구현 예정, 현재 404 |
 | `POST /api/logout` | 본문 없음 | 204, 본문 없음 | A 구현 예정, 현재 404 |
 | `POST /api/chat` | `{"question":"..."}` | 200, `{"answer":"..."}` | 연결 골격만 있음, 정상 입력도 현재 501 |
 | `GET /api/me/chats` | 본문 없음 | 200, 기록 배열. [DB 안내](DATABASE.md) 참고 | D 구현 예정, 현재 404 |
 
 비밀번호 확인은 가입 화면에서 입력값을 비교하며 요청에는 `username`, `password`만 보낸다.
+회원가입 입력 규칙과 응답은 아래와 같다.
+
+- 사용자명: 앞뒤 공백을 제거한 뒤 3~30자, 영문·숫자·밑줄(`_`)만 허용한다.
+  소문자로 저장하므로 `Charles`와 `charles`는 같은 사용자명이다.
+- 비밀번호: 15~128자이며 공백과 유니코드 문자를 허용한다. `trim()`이나 소문자 변환을 하지 않는다.
+- 성공: 201과 `id`, `username`을 반환한다. 자동 로그인하지 않으며, 프론트에서 로그인 화면으로 이동시킨다.
+- 중복: 409, `{"detail":"이미 사용 중인 사용자명입니다."}`.
+- 입력 오류: 422, `detail` 배열의 `loc`, `msg`, `type`으로 필드별 안내를 표시한다.
+  서버는 원본 입력을 응답에 포함하지 않는다.
+- 저장 실패: 500, `{"detail":"회원가입 정보를 저장하지 못했습니다."}`.
+
+서버 실행 후 API만 확인하는 예시 (테스트용 계정이 DB에 생성됨):
+
+```bash
+curl -i http://127.0.0.1:8000/api/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"demo_user","password":"example password phrase"}'
+```
+
 인증은 A가 서명된 HttpOnly 세션 쿠키로 구현한다. 토큰을 localStorage에 저장하는 구조를 만들지 않는다.
 같은 서버의 상대 URL로 요청하고, 사용자 ID를 요청에 넣어 인증을 대신하지 않는다.
 인증 도입 후 `/chat`·`/history` 화면과 채팅·기록 API에는 로그인 제한을 적용한다.

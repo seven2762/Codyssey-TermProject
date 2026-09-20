@@ -5,7 +5,7 @@
    생성자   : Changhwan Kim
 
    생성일   : 2026/09/14
-   업데이트  : 2026/09/15
+   업데이트  : 2026/09/20
 
    설명     : SQLite 연결, SQLAlchemy 공통 모델 기반과 요청별 세션 제공
 """
@@ -21,6 +21,7 @@ from app.logger import logger
 engine = create_engine(
     URL.create("sqlite", database=str(DATABASE_PATH)),
     connect_args={"check_same_thread": False},
+    hide_parameters=True,  # DB 예외 로그에 비밀번호 해시 등 SQL 인자를 노출하지 않는다.
 )
 SessionLocal = sessionmaker(bind=engine)
 
@@ -52,3 +53,11 @@ def get_db() -> Generator[Session, None, None]:
     """각 요청에 독립된 세션을 제공한다. 쓰기 작업의 commit은 호출자가 한다."""
     with SessionLocal() as session:
         yield session
+
+
+def init_db() -> None:
+    """DB 연결을 확인하고 아직 없는 테이블을 생성한다."""
+    from app.models import user  # 테이블 정의를 Base.metadata에 등록한다.
+
+    check_connection()
+    Base.metadata.create_all(bind=engine)
