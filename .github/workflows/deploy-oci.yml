@@ -251,7 +251,15 @@ jobs:
           fi
 
           rollback() {
-            docker logs --tail 100 "$CONTAINER_NAME" 2>/dev/null || true
+            # 기동 실패 원인은 대부분 stderr로 나오므로 표준 출력으로 합쳐 남긴다.
+            echo "--- ${CONTAINER_NAME} 컨테이너 로그 (최근 100줄) ---" >&2
+            docker logs --tail 100 "$CONTAINER_NAME" 2>&1 || true
+            echo "--- 컨테이너 로그 끝 ---" >&2
+
+            health_status="$(docker inspect --format '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null || echo unknown)"
+            exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo unknown)"
+            echo "컨테이너 상태: ${health_status}, 종료 코드: ${exit_code}" >&2
+
             docker rm --force "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
             if docker container inspect "$backup_container" >/dev/null 2>&1; then
