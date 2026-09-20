@@ -37,6 +37,11 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 
 ## 구현 순서와 API 약속
 
+전체 요청·응답 규격은 [API 명세](API.md)를 참고한다.
+`static/js/main.js`의 `signupUser(username, password)`는 실제 회원가입 API를 호출하는 예시이다.
+폼의 submit 처리에서 호출하면 성공 시 `{id, username}`을 반환하고, 실패 시 `Error`를 던진다.
+입력 검증 오류와 중복 가입 안내는 `catch`에서 `error.message`로 표시한다.
+
 1. 로그인·회원가입 폼과 채팅 화면을 작성한다.
 2. 채팅에 공백 입력 차단, 1,000자 제한, 전송 중 버튼 비활성화와 오류 표시를 넣는다.
 3. 아래 API가 담당자의 PR에서 완성되면 JavaScript의 `fetch`로 연결한다.
@@ -53,7 +58,7 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 | `GET /api/me` | 본문 없음 | 200, `{"id":1,"username":"..."}` | 구현 완료, 비로그인은 401 |
 | `POST /api/logout` | 본문 없음 | 204, 본문 없음 | 구현 완료 |
 | `POST /api/chat` | `{"question":"..."}` | 200, `{"answer":"..."}` | 로그인 필요, AI 연결 미구현으로 정상 입력은 현재 501 |
-| `GET /api/me/chats` | 본문 없음 | 200, 기록 배열. [DB 안내](DATABASE.md) 참고 | D 구현 예정, 현재 404 |
+| `GET /api/me/chats` | 본문 없음 | 200, 기록 배열. [DB 안내](DATABASE.md) 참고 | 구현 완료, 본인 기록만 최신순 반환 |
 
 채팅 API는 AI 답변을 받은 뒤 DB 저장까지 성공해야 200을 반환한다. 저장 실패는
 500, `{"detail":"대화 기록을 저장하지 못했습니다."}`로 안내한다.
@@ -82,7 +87,7 @@ curl -i http://127.0.0.1:8000/api/signup \
 
 인증은 서명된 HttpOnly 세션 쿠키로 구현되어 있다. 토큰을 localStorage에 저장하지 않는다.
 같은 서버의 상대 URL로 요청하고, 사용자 ID를 요청에 넣어 인증을 대신하지 않는다.
-`/chat`·`/history` 화면과 채팅 API에는 로그인 제한이 적용되어 있다. 기록 API는 추후 같은 검사를 연결한다.
+`/chat`·`/history` 화면과 채팅·기록 API에는 로그인 제한이 적용되어 있다.
 로그인은 아래처럼 호출한다. `username`, `password`는 폼에서 읽은 값이다.
 
 ```javascript
@@ -114,6 +119,31 @@ if (response.ok) {
 204 응답에는 JSON 파싱을 시도하지 않는다.
 AI 답변과 사용자 입력을 DOM에 추가할 때는 `textContent`를 사용한다.
 Jinja2에서 사용자 입력에 `|safe`를 적용하지 않는다.
+
+## 내 대화 기록 연결
+
+`history.html`의 기록 목록에서 `GET /api/me/chats`를 호출한다.
+사용자 ID나 요청 본문, POST용 헤더는 필요하지 않으며 같은 출처의 세션 쿠키로 본인을 확인한다.
+
+```javascript
+const response = await fetch("/api/me/chats");
+const data = await response.json();
+if (response.status === 401) {
+    window.location.assign("/login");
+} else if (!response.ok) {
+    // data.detail을 오류 메시지로 표시한다. 빈 기록으로 처리하지 않는다.
+} else {
+    // data는 최신순 배열이다. []이면 "대화 기록이 없습니다."를 표시한다.
+    // 각 항목의 question, answer는 textContent로 출력한다.
+    // 생성 시각은 new Date(item.created_at).toLocaleString()으로 표시할 수 있다.
+}
+```
+
+항목은 `id`, `question`, `answer`, `created_at`을 포함한다.
+시간은 `2026-09-20T03:00:00Z`처럼 UTC로 전달하며 브라우저에서 사용자 시간대로 표시한다.
+API는 현재 본인의 전체 기록을 `created_at DESC, id DESC` 순서로 반환한다.
+조회 실패는 500과 `{"detail":"대화 기록을 불러오지 못했습니다."}`로 안내한다.
+응답에는 `Cache-Control: no-store`가 적용되어 있다. 화면의 목록 표시는 프론트에서 구현한다.
 
 ## 작업 완료 확인
 
