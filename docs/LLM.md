@@ -7,7 +7,8 @@
 | `backend/app/llm.py` | HTTP 요청·응답, 인증 연결, 최근 대화 조회, 답변 저장, HTTP 오류 변환 |
 | `backend/app/llm_connect.py` | B가 실제 수정할 외부 AI 통신 모듈. 요청 구성·타임아웃·응답 추출 |
 | `backend/app/config.py` | 공통 환경변수 읽기. AI 설정을 추가할 때 사용 |
-| `backend/app/models/chat.py` | D가 정의할 대화 기록 모델 |
+| `backend/app/models/chat.py` | 구현된 대화 기록 모델 |
+| `backend/app/chat_db.py` | 질문·답변 저장 함수 `create_chat()` |
 
 호출 흐름은 `화면 → POST /api/chat → llm.py → llm_connect.generate_answer() → AI 서비스`이다.
 외부 AI 키나 SDK를 프론트에서 사용하지 않는다.
@@ -17,7 +18,7 @@
 `llm.py`는 `Depends(get_current_user)`로 인증한 사용자의 질문만 통신 함수로 전달한다.
 질문 앞뒤 공백을 제거하고 1~1,000자로 검증한다.
 `generate_answer()`는 아직 `NotImplementedError`를 발생시키고, 라우터는 이를 HTTP 501로 변환한다.
-실제 AI 호출·문맥 조회·대화 저장은 구현하지 않았다.
+답변을 받은 뒤 대화 기록을 저장하는 처리는 연결되어 있다. 실제 AI 호출·문맥 조회는 아직 구현하지 않았다.
 
 서버에 테스트 계정을 가입한 뒤 아래처럼 로그인하고 연결을 확인한다.
 `.env`와 계정 API 설정은 [인증 안내](AUTH.md)를 따른다.
@@ -59,13 +60,17 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
 3. `llm_connect.py`에서 비동기 API 호출을 구현한다. 타임아웃을 반드시 설정한다.
 4. 이미 연결된 `get_current_user`와 `require_csrf_header`를 유지한다.
    라우터의 `user.id`를 DB 조회·저장의 사용자 기준으로 사용한다.
-5. D의 모델로 해당 사용자의 최근 5쌍을 조회하고 통신 함수에 전달한다.
-6. 답변을 받은 뒤 질문·답변을 저장하고 `{"answer":"..."}`를 반환한다.
+5. `Chat` 모델로 해당 사용자의 최근 5쌍을 조회하고 통신 함수에 전달한다.
+6. 기존 `create_chat()` 호출을 유지한다. 저장 완료 후 `{"answer":"..."}`를 반환하므로 중복 저장을 추가하지 않는다.
+
+저장은 `llm.py`가 `run_in_threadpool()`로 실행하고 완료될 때까지 기다린다.
+`llm_connect.py`는 DB를 다루지 않고 답변 문자열만 반환한다.
 
 통신 함수는 타임아웃·제공자 오류를 예외로 전달하고, `llm.py`에서 각각 504·502와
 사용자용 `detail` 메시지로 바꾼다. 내부 응답이나 키를 오류 메시지에 그대로 노출하지 않는다.
 POST 공통 헤더 누락·오류는 403, 인증 실패는 401, 인증 후 입력 검증 실패는 422로 처리한다.
 DB 저장 실패는 rollback하고 성공 응답 대신 500과 저장 실패 안내를 반환한다.
+이 저장 오류 처리와 `db_save_success`·`db_save_failure` 로그는 이미 구현되어 있다.
 
 요청 수신, AI 호출 시작, AI 응답·실패, DB 저장 성공·실패 이벤트를 logger로 기록한다.
 사용자 식별·요청 추적에 필요한 값은 남기되 키·비밀번호·전체 요청 헤더는 기록하지 않는다.

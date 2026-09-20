@@ -57,7 +57,7 @@ def get_db() -> Generator[Session, None, None]:
 
 def init_db() -> None:
     """DB 연결을 확인하고 아직 없는 테이블을 생성한다."""
-    from app.models import user  # 테이블 정의를 Base.metadata에 등록한다.
+    from app.models import chat, user  # 테이블 정의를 Base.metadata에 등록한다.
 
     check_connection()
     Base.metadata.create_all(bind=engine)
