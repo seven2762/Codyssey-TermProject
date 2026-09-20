@@ -2,25 +2,65 @@
 
 let currentUser = null;
 
-document.addEventListener('DOMContentLoaded', () =&gt; {
+document.addEventListener('DOMContentLoaded', () => {
+    bindGlobalEvents();
     checkAuthStatus();
 });
 
-// 1. 인증 상태 확인 (GET /api/me)
+function bindGlobalEvents() {
+    const newChatBtn = document.getElementById('new-chat-btn');
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', () => {
+            if (typeof resetChatWindow === 'function') resetChatWindow();
+        });
+    }
+
+    const guestOverlay = document.getElementById('guest-input-overlay');
+    if (guestOverlay) {
+        guestOverlay.addEventListener('click', () => openModal('login-modal'));
+    }
+
+    document.querySelectorAll('[data-close]').forEach((btn) => {
+        btn.addEventListener('click', () => closeModal(btn.dataset.close));
+    });
+
+    const signupLink = document.getElementById('signup-link');
+    if (signupLink) {
+        signupLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchModal('login-modal', 'signup-modal');
+        });
+    }
+
+    const loginLink = document.getElementById('login-link');
+    if (loginLink) {
+        loginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchModal('signup-modal', 'login-modal');
+        });
+    }
+
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
+
+    const signupForm = document.getElementById('signup-form');
+    if (signupForm) signupForm.addEventListener('submit', handleSignup);
+}
+
 async function checkAuthStatus() {
     try {
-        const response = await fetch('/api/me');
+        const response = await fetch('/api/me', { method: 'GET' });
         if (response.ok) {
-            const data = await response.json();
-            currentUser = data.username;
+            const data = await response.json().catch(() => ({ username: 'demo-user' }));
+            currentUser = data.username || 'demo-user';
             setLoggedInUI(currentUser);
             loadHistoryIndex();
-        } else {
-            setGuestUI();
+            return;
         }
     } catch (e) {
-        setGuestUI();
+        // 프론트 UI는 비로그인 상태로 자연스럽게 표시한다.
     }
+    setGuestUI();
 }
 
 function setLoggedInUI(username) {
@@ -38,7 +78,10 @@ function setLoggedInUI(username) {
         logoutLink.href = '#';
         logoutLink.className = 'btn-link';
         logoutLink.textContent = '로그아웃';
-        logoutLink.onclick = (e) =&gt; { e.preventDefault(); handleLogout(); };
+        logoutLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            handleLogout();
+        });
 
         profileEl.appendChild(userSpan);
         profileEl.appendChild(logoutLink);
@@ -69,7 +112,10 @@ function setGuestUI() {
         loginLink.href = '#';
         loginLink.className = 'btn-link';
         loginLink.textContent = '로그인';
-        loginLink.onclick = (e) =&gt; { e.preventDefault(); openModal('login-modal'); };
+        loginLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            openModal('login-modal');
+        });
 
         profileEl.appendChild(msgSpan);
         profileEl.appendChild(loginLink);
@@ -90,24 +136,29 @@ function setGuestUI() {
     }
 }
 
-// XSS 방지용 문자열 탈출 함수
 function escapeHTML(str) {
-    return String(str).replace(/[&amp;&lt;&gt;"']/g, (m) =&gt; ({
-        '&amp;': '&amp;', '&lt;': '&lt;', '&gt;': '&gt;', '"': '"', "'": '''
+    return String(str).replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
     }[m]));
 }
 
-// 2. 사이드바 대화 기록 불러오기 (GET /api/me/chats)
 async function loadHistoryIndex() {
     if (!currentUser) return;
     const historyList = document.getElementById('history-list');
     if (!historyList) return;
 
     try {
-        const response = await fetch('/api/me/chats');
-        if (!response.ok) return;
+        const response = await fetch('/api/me/chats', { method: 'GET' });
+        if (!response.ok) {
+            historyList.innerHTML = '<p>이전 대화가 없습니다.</p>';
+            return;
+        }
 
-        const chats = await response.json();
+        const chats = await response.json().catch(() => []);
         historyList.innerHTML = '';
 
         if (!Array.isArray(chats) || chats.length === 0) {
@@ -115,27 +166,26 @@ async function loadHistoryIndex() {
             return;
         }
 
-        chats.forEach(chat =&gt; {
+        chats.forEach(chat => {
             const item = document.createElement('div');
             item.className = 'history-item';
             item.textContent = `💬 ${chat.question}`;
-            item.onclick = () =&gt; {
+            item.addEventListener('click', () => {
                 const welcome = document.getElementById('welcome-card');
                 if (welcome) welcome.remove();
                 if (typeof appendMessage === 'function') {
                     appendMessage('user', chat.question);
-                    appendMessage('ai', chat.answer);
+                    appendMessage('ai', chat.answer || '답변 없음');
                     scrollToBottom();
                 }
-            };
+            });
             historyList.appendChild(item);
         });
     } catch (e) {
-        console.error('목록 로딩 실패:', e);
+        historyList.innerHTML = '<p>대화 기록을 불러오지 못했습니다.</p>';
     }
 }
 
-// 모달 조작
 function openModal(id) {
     const el = document.getElementById(id);
     if (el) el.style.display = 'flex';
@@ -149,7 +199,6 @@ function switchModal(fromId, toId) {
     openModal(toId);
 }
 
-// 3. 로그인 처리 (POST /api/login, 422 validation array 대응)
 async function handleLogin(e) {
     e.preventDefault();
     const uInput = document.getElementById('login-username');
@@ -169,11 +218,11 @@ async function handleLogin(e) {
         });
 
         if (!response.ok) {
-            const data = await response.json().catch(() =&gt; ({}));
+            const data = await response.json().catch(() => ({}));
             let msg = '⚠️ 아이디 또는 비밀번호가 올바르지 않습니다.';
             if (data.detail) {
                 if (Array.isArray(data.detail)) {
-                    msg = data.detail.map(item =&gt; item.msg || JSON.stringify(item)).join(', ');
+                    msg = data.detail.map(item => item.msg || JSON.stringify(item)).join(', ');
                 } else if (typeof data.detail === 'string') {
                     msg = data.detail;
                 }
@@ -196,7 +245,6 @@ async function handleLogin(e) {
     }
 }
 
-// 4. 회원가입 처리 (POST /api/signup, 422 validation array 대응)
 async function handleSignup(e) {
     e.preventDefault();
     const uInput = document.getElementById('signup-username');
@@ -222,11 +270,11 @@ async function handleSignup(e) {
         });
 
         if (!response.ok) {
-            const data = await response.json().catch(() =&gt; ({}));
+            const data = await response.json().catch(() => ({}));
             let msg = '⚠️ 회원가입 실패. 다시 시도해 주세요.';
             if (data.detail) {
                 if (Array.isArray(data.detail)) {
-                    msg = data.detail.map(item =&gt; item.msg || JSON.stringify(item)).join(', ');
+                    msg = data.detail.map(item => item.msg || JSON.stringify(item)).join(', ');
                 } else if (typeof data.detail === 'string') {
                     msg = data.detail;
                 }
@@ -247,13 +295,11 @@ async function handleSignup(e) {
     }
 }
 
-// 5. 로그아웃 처리 (POST /api/logout, 204 No Content 대응)
 async function handleLogout() {
     try {
         const response = await fetch('/api/logout', { method: 'POST' });
-        // 204 No Content 시 json() 파싱 시도를 차단합니다.
-        if (response.status !== 204 &amp;&amp; response.ok) {
-            await response.json().catch(() =&gt; ({}));
+        if (response.status !== 204 && response.ok) {
+            await response.json().catch(() => ({}));
         }
     } catch (e) {
         console.error('로그아웃 요청 처리 중 오류:', e);
