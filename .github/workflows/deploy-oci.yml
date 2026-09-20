@@ -75,8 +75,11 @@ jobs:
       OCI_SSH_KNOWN_HOSTS: ${{ secrets.OCI_SSH_KNOWN_HOSTS }}
       TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+      SESSION_SECRET_KEY: ${{ secrets.SESSION_SECRET_KEY }}
       OCI_SSH_PORT: ${{ vars.OCI_SSH_PORT || '22' }}
       OCI_APP_PORT: ${{ vars.OCI_APP_PORT || '8000' }}
+      SESSION_MAX_AGE: ${{ vars.SESSION_MAX_AGE || '3600' }}
+      SESSION_HTTPS_ONLY: ${{ vars.SESSION_HTTPS_ONLY || 'false' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -93,7 +96,8 @@ jobs:
             OCI_SSH_PRIVATE_KEY \
             OCI_SSH_KNOWN_HOSTS \
             TS_OAUTH_CLIENT_ID \
-            TS_AUDIENCE
+            TS_AUDIENCE \
+            SESSION_SECRET_KEY
           do
             if [[ -z "${!required_name:-}" ]]; then
               echo "Missing required secret: ${required_name}" >&2
@@ -108,6 +112,16 @@ jobs:
 
           if [[ ! "$OCI_APP_PORT" =~ ^[0-9]+$ ]]; then
             echo "OCI_APP_PORT must be numeric." >&2
+            exit 1
+          fi
+
+          if [[ ! "$SESSION_MAX_AGE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "SESSION_MAX_AGE must be a positive integer." >&2
+            exit 1
+          fi
+
+          if [[ "$SESSION_HTTPS_ONLY" != "true" && "$SESSION_HTTPS_ONLY" != "false" ]]; then
+            echo "SESSION_HTTPS_ONLY must be true or false." >&2
             exit 1
           fi
 
@@ -202,6 +216,24 @@ jobs:
             "$OCI_SSH_USER@$OCI_HOST" \
             "docker login --username 2hynmin --password-stdin"
 
+      - name: Upload application environment to OCI
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 값이 원격 프로세스 목록이나 Actions 로그에 남지 않도록 stdin으로만 전달한다.
+          {
+            printf 'SESSION_SECRET_KEY=%s\n' "$SESSION_SECRET_KEY"
+            printf 'SESSION_MAX_AGE=%s\n' "$SESSION_MAX_AGE"
+            printf 'SESSION_HTTPS_ONLY=%s\n' "$SESSION_HTTPS_ONLY"
+          } | ssh \
+            -i "$HOME/.ssh/oci_deploy_key" \
+            -p "$OCI_SSH_PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            "$OCI_SSH_USER@$OCI_HOST" \
+            "umask 077 && cat > ~/.askmate-deploy.env && chmod 600 ~/.askmate-deploy.env"
+
       - name: Replace OCI container
         shell: bash
         env:
@@ -224,6 +256,15 @@ jobs:
 
           backup_container="${CONTAINER_NAME}-previous"
           env_file="/opt/askmate/.env"
+          deploy_env_file="${HOME}/.askmate-deploy.env"
+
+          # docker run이 값을 읽은 뒤에는 남겨둘 이유가 없다.
+          trap 'rm -f "$deploy_env_file"' EXIT
+
+          if [[ ! -f "$deploy_env_file" ]]; then
+            echo "배포 환경 파일을 찾을 수 없습니다: ${deploy_env_file}" >&2
+            exit 1
+          fi
 
           if ! tailscale ip -4 | grep -Fxq "$OCI_BIND_HOST"; then
             echo "OCI_HOST is not assigned to this server's Tailscale interface." >&2
@@ -246,9 +287,11 @@ jobs:
             --mount "type=volume,source=askmate-data,target=/app/data"
           )
 
+          # 서버에 직접 둔 설정을 먼저 적용하고, 워크플로가 전달한 값으로 덮어쓴다.
           if [[ -f "$env_file" ]]; then
             run_options+=(--env-file "$env_file")
           fi
+          run_options+=(--env-file "$deploy_env_file")
 
           rollback() {
             # 기동 실패 원인은 대부분 stderr로 나오므로 표준 출력으로 합쳐 남긴다.
