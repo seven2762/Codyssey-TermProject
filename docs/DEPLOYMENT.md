@@ -6,19 +6,30 @@ OCI Compute 인스턴스에서 해당 이미지를 실행한다.
 
 ## 배포 흐름
 
-1. `develop` 대상 PR에서는 Docker 이미지가 빌드되는지만 검증한다.
-2. 검증된 `develop`을 `main`에 병합하면 다중 아키텍처 이미지를 Docker Hub에 게시한다.
+1. `develop`·`main` 대상 PR에서 이미지를 게시하고 OCI에 실제로 배포한다.
+2. 이 배포 잡이 통과해야 PR을 머지한다. 배포가 실패하면 머지하지 않는다.
 3. GitHub Actions 러너가 `tag:ci` Tailscale 임시 노드로 접속한다.
 4. 러너가 OCI의 Tailscale IP로 SSH 접속해 새 컨테이너를 시작한다.
 5. Docker 상태 확인이 실패하면 직전 컨테이너를 다시 시작한다.
+6. 머지된 `develop`을 `main`에 병합하면 같은 절차로 다시 배포한다.
 
-이미지는 다음 두 태그로 게시한다.
+릴리스 서버가 아닌 검증용 서버이므로 머지 전 PR 코드가 OCI에서 동작한다.
+OCI 컨테이너는 하나뿐이므로 `oci-production` 동시성 그룹이 배포를 순서대로 실행하며,
+여러 PR이 동시에 열려 있으면 가장 마지막에 성공한 배포의 코드가 서버에 남는다.
 
-- `2hynmin/codyssey-term:latest`
-- `2hynmin/codyssey-term:sha-<Git 커밋 SHA>`
+이미지 태그는 실행 유형에 따라 다르다.
 
-OCI에는 변경 불가능한 커밋 SHA 태그를 배포한다. `latest`는 사람이 최신 이미지를
-확인하거나 수동으로 실행할 때 사용한다.
+| 실행 유형 | 게시 태그 |
+| --- | --- |
+| `develop`·`main` 대상 PR | `sha-<PR head 커밋 SHA>`, `pr-<PR 번호>` |
+| `main` 푸시·수동 실행 | `sha-<Git 커밋 SHA>`, `latest` |
+
+OCI에는 항상 변경 불가능한 `sha-` 태그를 배포한다. `latest`는 사람이 최신 이미지를
+확인하거나 수동으로 실행할 때 사용하므로 검증 중인 PR 이미지가 덮어쓰지 않는다.
+`pull_request`의 `github.sha`는 임시 병합 커밋이므로 태그에는 PR의 head 커밋 SHA를 쓴다.
+
+포크에서 올린 PR은 `production` 환경 Secrets를 받지 못해 배포할 수 없다.
+이 경우에는 이미지를 게시하지 않고 빌드 가능 여부만 확인하는 잡이 대신 실행된다.
 
 ## OCI 사전 준비
 
@@ -103,8 +114,8 @@ Tailnet 접근 정책은 `tag:ci`에서 이 OCI 인스턴스의 SSH 포트로 �
 | `OCI_SSH_PORT` | `22` | OCI SSH 포트 |
 | `OCI_APP_PORT` | `8000` | OCI의 Tailscale IPv4 주소에 게시할 애플리케이션 포트 |
 
-GitHub `production` 환경에는 승인자를 지정해 `main` 병합과 실제 배포 사이에 수동
-승인 단계를 둘 수 있다.
+GitHub `production` 환경에는 승인자를 지정해 실제 배포 앞에 수동 승인 단계를 둘 수
+있다. 다만 현재는 PR 단계에서도 배포하므로, 승인자를 지정하면 모든 PR이 승인을 기다린다.
 
 ## 로컬 Docker 검증
 
@@ -135,3 +146,5 @@ DB 영구 저장 검증은 위 테스트 전용 `askmate-data-local` 볼륨으�
 자동 배포가 실패하지 않았는데 다시 실행해야 한다면 GitHub Actions의
 `Docker CI and OCI deploy` workflow를 `main` 브랜치에서 수동 실행한다. 다른
 브랜치에서 수동 실행하면 이미지를 빌드하거나 OCI에 배포하지 않는다.
+
+PR 배포로 서버에 남은 코드를 되돌리려면 `main`에서 이 workflow를 수동 실행한다.
