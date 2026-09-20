@@ -37,6 +37,11 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 
 ## 구현 순서와 API 약속
 
+전체 요청·응답 규격은 [API 명세](API.md)를 참고한다.
+`static/js/main.js`의 `signupUser(username, password)`는 실제 회원가입 API를 호출하는 예시이다.
+폼의 submit 처리에서 호출하면 성공 시 `{id, username}`을 반환하고, 실패 시 `Error`를 던진다.
+입력 검증 오류와 중복 가입 안내는 `catch`에서 `error.message`로 표시한다.
+
 1. 로그인·회원가입 폼과 채팅 화면을 작성한다.
 2. 채팅에 공백 입력 차단, 1,000자 제한, 전송 중 버튼 비활성화와 오류 표시를 넣는다.
 3. 아래 API가 담당자의 PR에서 완성되면 JavaScript의 `fetch`로 연결한다.
