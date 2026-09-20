@@ -8,7 +8,7 @@
 | `backend/app/llm_connect.py` | B가 실제 수정할 외부 AI 통신 모듈. 요청 구성·타임아웃·응답 추출 |
 | `backend/app/config.py` | 공통 환경변수 읽기. AI 설정을 추가할 때 사용 |
 | `backend/app/models/chat.py` | 구현된 대화 기록 모델 |
-| `backend/app/chat_db.py` | 질문·답변 저장 함수 `create_chat()` |
+| `backend/app/chat_db.py` | 저장 함수 `create_chat()` 및 기록 화면용 전체 조회 `get_chats_by_user()` |
 
 호출 흐름은 `화면 → POST /api/chat → llm.py → llm_connect.generate_answer() → AI 서비스`이다.
 외부 AI 키나 SDK를 프론트에서 사용하지 않는다.
@@ -18,7 +18,8 @@
 `llm.py`는 `Depends(get_current_user)`로 인증한 사용자의 질문만 통신 함수로 전달한다.
 질문 앞뒤 공백을 제거하고 1~1,000자로 검증한다.
 `generate_answer()`는 아직 `NotImplementedError`를 발생시키고, 라우터는 이를 HTTP 501로 변환한다.
-답변을 받은 뒤 대화 기록을 저장하는 처리는 연결되어 있다. 실제 AI 호출·문맥 조회는 아직 구현하지 않았다.
+답변을 받은 뒤 대화 기록을 저장하는 처리와 본인 기록 조회 API는 연결되어 있다.
+실제 AI 호출·최근 5쌍의 문맥 조회는 아직 구현하지 않았다.
 
 서버에 테스트 계정을 가입한 뒤 아래처럼 로그인하고 연결을 확인한다.
 `.env`와 계정 API 설정은 [인증 안내](AUTH.md)를 따른다.
@@ -81,5 +82,5 @@ AI를 기다리는 동안 DB 쓰기 트랜잭션을 열어두지 않는다.
 - 미로그인 상태에서 외부 AI가 호출되지 않는다.
 - 이전 질문에 이어서 대화할 수 있고 다른 사용자의 문맥이 섞이지 않는다.
 - 타임아웃·호출 실패·저장 실패에 오류 응답을 보내며 서버가 계속 동작한다.
-- 성공한 질문·답변이 저장되고 D의 조회 API에서 확인된다.
+- 성공한 질문·답변이 저장되고 `GET /api/me/chats`에서 본인 기록으로 확인된다.
 - `feature/ai-chat`에서 작업하고 `develop` 대상으로 PR을 작성한다.
