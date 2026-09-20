@@ -8,7 +8,7 @@
 | `backend/app/llm_connect.py` | B가 실제 수정할 외부 AI 통신 모듈. 요청 구성·타임아웃·응답 추출 |
 | `backend/app/config.py` | 공통 환경변수 읽기. AI 설정을 추가할 때 사용 |
 | `backend/app/models/chat.py` | 구현된 대화 기록 모델 |
-| `backend/app/chat_db.py` | 저장 함수 `create_chat()` 및 기록 화면용 전체 조회 `get_chats_by_user()` |
+| `backend/app/chat_db.py` | 저장 `create_chat()`, 전체 조회 `get_chats_by_user()`, 문맥 조회 `get_recent_chats_by_user()` |
 
 호출 흐름은 `화면 → POST /api/chat → llm.py → llm_connect.generate_answer() → AI 서비스`이다.
 외부 AI 키나 SDK를 프론트에서 사용하지 않는다.
@@ -18,8 +18,8 @@
 `llm.py`는 `Depends(get_current_user)`로 인증한 사용자의 질문만 통신 함수로 전달한다.
 질문 앞뒤 공백을 제거하고 1~1,000자로 검증한다.
 `generate_answer()`는 아직 `NotImplementedError`를 발생시키고, 라우터는 이를 HTTP 501로 변환한다.
-답변을 받은 뒤 대화 기록을 저장하는 처리와 본인 기록 조회 API는 연결되어 있다.
-실제 AI 호출·최근 5쌍의 문맥 조회는 아직 구현하지 않았다.
+최근 5쌍의 문맥 조회·전달, 답변 수신 후 저장, 본인 기록 조회 API가 연결되어 있다.
+실제 AI 호출과 AI 오류·타임아웃의 HTTP 변환은 아직 구현하지 않았다.
 
 서버에 테스트 계정을 가입한 뒤 아래처럼 로그인하고 연결을 확인한다.
 `.env`와 계정 API 설정은 [인증 안내](AUTH.md)를 따른다.
@@ -50,8 +50,10 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
 - `question`: 이번 질문. history에 중복해서 넣지 않는다.
 - `history`: 현재 사용자의 최근 5개 질문·답변 쌍을 오래된 순서로 펼친 메시지 목록.
   각 항목은 `{"role":"user","content":"질문"}` 또는 `{"role":"assistant","content":"답변"}`이다.
+  최대 10개 메시지이며, 기록이 없으면 빈 목록이다. 같은 시각의 기록은 ID 순서로 정렬한다.
 - 반환값: AI 답변 문자열. HTTP 응답 객체나 DB 모델을 반환하지 않는다.
-- 현재 라우터는 빈 history를 전달한다. B가 DB 조회를 붙이면서 실제 기록으로 바꾼다.
+- 라우터가 로그인 사용자의 DB 기록으로 history를 구성한다. 요청 본문의 `user_id`나 `history`는 사용하지 않는다.
+- B는 전달받은 history 뒤에 이번 question을 한 번 추가해 AI 요청을 구성한다. DB 조회를 다시 구현하지 않는다.
 
 ## 구현 순서
 
@@ -61,11 +63,13 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
 3. `llm_connect.py`에서 비동기 API 호출을 구현한다. 타임아웃을 반드시 설정한다.
 4. 이미 연결된 `get_current_user`와 `require_csrf_header`를 유지한다.
    라우터의 `user.id`를 DB 조회·저장의 사용자 기준으로 사용한다.
-5. `Chat` 모델로 해당 사용자의 최근 5쌍을 조회하고 통신 함수에 전달한다.
+5. 전달받은 최근 5쌍의 history와 이번 question으로 AI 요청을 구성한다.
 6. 기존 `create_chat()` 호출을 유지한다. 저장 완료 후 `{"answer":"..."}`를 반환하므로 중복 저장을 추가하지 않는다.
 
 저장은 `llm.py`가 `run_in_threadpool()`로 실행하고 완료될 때까지 기다린다.
 `llm_connect.py`는 DB를 다루지 않고 답변 문자열만 반환한다.
+문맥 조회도 스레드에서 실행한다. 조회 실패는 500과 `최근 대화 기록을 불러오지 못했습니다.`로
+안내하며 `db_read_failure operation=chat_context`를 기록한다. 이때 AI 호출·저장은 하지 않는다.
 
 통신 함수는 타임아웃·제공자 오류를 예외로 전달하고, `llm.py`에서 각각 504·502와
 사용자용 `detail` 메시지로 바꾼다. 내부 응답이나 키를 오류 메시지에 그대로 노출하지 않는다.

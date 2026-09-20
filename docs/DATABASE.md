@@ -5,7 +5,7 @@
 SQLite + SQLAlchemy 2.x의 동기 방식으로 구현한다. 각 개발자는 로컬 DB 파일을 사용한다.
 서버 시작 시 디렉터리·DB 파일을 준비하고 연결을 확인한 뒤 없는 `users`·`chats` 테이블을 생성한다.
 회원가입·로그인에 필요한 사용자 저장·조회와 대화 기록 저장·본인 기록 조회 API가 구현되어 있다.
-기록 목록 화면과 AI 요청에 사용할 최근 문맥 조회는 후속 작업이다.
+AI 문맥용 최근 5쌍 조회도 구현되어 있다. 기록 목록 화면과 실제 AI 호출은 후속 작업이다.
 
 | 파일 | 담당과 역할 |
 | --- | --- |
@@ -13,7 +13,7 @@ SQLite + SQLAlchemy 2.x의 동기 방식으로 구현한다. 각 개발자는 �
 | `backend/app/db_connect.py` | A: engine, Base, 요청별 `get_db()` 세션 제공 |
 | `backend/app/models/user.py` | A: 사용자 테이블 |
 | `backend/app/account_db.py` | 사용자 저장·조회, 쓰기 시 commit·rollback |
-| `backend/app/chat_db.py` | 질문·답변 저장 및 사용자별 최신순 조회, 쓰기 시 commit·rollback |
+| `backend/app/chat_db.py` | 질문·답변 저장, 사용자별 전체 기록·최근 문맥 조회, 쓰기 시 commit·rollback |
 | `backend/app/auth.py` | 세션의 사용자 조회와 로그인 필수 검사 |
 | `backend/app/security.py` | Argon2 비밀번호 해시·검증 |
 | `backend/app/models/chat.py` | D: 대화 기록 테이블 |
@@ -64,7 +64,7 @@ UTC로 해석하여 `Z` 또는 `+00:00`이 포함된 ISO 8601 문자열로 변�
 
 ## 대화 저장 흐름
 
-`POST /api/chat → 로그인·입력 확인 → AI 답변 수신 → create_chat() → 성공 응답` 순서이다.
+`POST /api/chat → 로그인·입력 확인 → 최근 문맥 조회 → AI 답변 수신 → create_chat() → 성공 응답` 순서이다.
 `chat_db.create_chat(db, user_id, question, answer)`는 질문·답변 한 쌍을 저장하고 기록 ID를 반환한다.
 사용자 ID는 로그인 세션에서 확인한 `user.id`를 사용하며 요청 본문의 ID는 사용하지 않는다.
 질문은 앞뒤 공백을 제거한 값, 답변은 AI 통신 함수에서 반환한 문자열을 저장한다.
@@ -79,6 +79,20 @@ UTC로 해석하여 `Z` 또는 `+00:00`이 포함된 ISO 8601 문자열로 변�
 실제 AI 통신은 아직 구현되지 않아 일반 실행에서는 501을 반환한다.
 `tests/test_chat_storage.py`는 통신 함수를 테스트용 응답으로 대체해 API와 DB 저장을 검증한다.
 저장 확인만을 위한 공개 API는 추가하지 않는다. 환경 변수와 의존성 변경도 없다.
+
+## AI 문맥 조회
+
+`get_recent_chats_by_user(db, user_id)`는 해당 사용자의 최근 5쌍만 SQL로 조회한다.
+`created_at DESC, id DESC`로 선택한 뒤 순서를 뒤집어 오래된 기록부터 반환한다.
+5쌍보다 적으면 있는 기록만, 없으면 빈 목록을 반환한다.
+
+`llm.py`가 각 쌍을 `user` 질문·`assistant` 답변으로 펼쳐 `generate_answer()`에 전달한다.
+이번 질문은 별도 인자로 전달하며 문맥에 미리 넣거나 DB에 먼저 저장하지 않는다.
+기록 화면용 `get_chats_by_user()`는 계속 전체 기록을 최신순으로 반환한다.
+
+문맥 조회 실패 시 AI를 호출하거나 새 기록을 저장하지 않는다.
+`db_read_failure operation=chat_context` 로그와 HTTP 500,
+`{"detail":"최근 대화 기록을 불러오지 못했습니다."}`를 반환한다.
 
 ## 내 대화 기록 조회
 
@@ -173,6 +187,9 @@ uv run python -m pytest -q
 조회 기능만 검증하려면 `uv run python -m pytest tests/test_chat_history.py -q`를 실행한다.
 조회 테스트는 사용자 구분·빈 목록·정렬·UTC 시간·인증 실패·DB 오류 후 복구,
 저장 API와의 연동·앱 재시작 후 조회·확인용 SQL 및 OpenAPI 응답 규격을 확인한다.
+
+문맥 기능은 `uv run python -m pytest tests/test_chat_context.py -q`로 검증한다.
+최근 5쌍 제한·시간순 전달·사용자 분리·연속 요청과 문맥 조회 실패 후 복구를 확인한다.
 
 현재 Starlette 1.6.0의 TestClient 내부에서 AnyIO `BlockingPortal` 별칭의 폐기 예정 경고가
 발생한다. 테스트용 HTTP 도구는 공식 권장인 `httpx2`를 사용하며, 이 경고를 숨기지는 않는다.
