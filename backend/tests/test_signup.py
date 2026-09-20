@@ -14,28 +14,6 @@ from sqlalchemy.orm import Session
 PASSWORD = "  a long password phrase  "
 
 
-@pytest.fixture(scope="module")
-def application(tmp_path_factory):
-    directory = tmp_path_factory.mktemp("signup")
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setenv("DATABASE_PATH", str(directory / "test.db"))
-        patch.chdir(directory)
-        from app.main import app
-
-        yield app
-
-
-@pytest.fixture
-def client(application):
-    from app.db_connect import engine
-    from app.models.user import User
-
-    with TestClient(application) as client:
-        with engine.begin() as connection:
-            connection.execute(User.__table__.delete())
-        yield client
-
-
 def read_users():
     from app.db_connect import SessionLocal
     from app.models.user import User
@@ -167,8 +145,8 @@ def test_commit_failure_rolls_back_and_next_signup_works(client):
     assert client.post("/api/signup", json={"username": "valid_user", "password": PASSWORD}).status_code == 201
 
 
-def test_users_survive_app_restart(application):
-    with TestClient(application) as client:
+def test_users_survive_app_restart(application, csrf_headers):
+    with TestClient(application, headers=csrf_headers) as client:
         response = client.post("/api/signup", json={"username": "persistent", "password": PASSWORD})
         assert response.status_code == 201
         user_id = response.json()["id"]
