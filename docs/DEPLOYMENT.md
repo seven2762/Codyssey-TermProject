@@ -76,8 +76,8 @@ Secret 값을 바꾸면 모든 세션이 무효가 된다.
 브라우저가 HTTPS로 접근하는 배포에서는 `SESSION_HTTPS_ONLY` Variable을 `true`로 설정한다.
 현재 문서의 Tailscale IP 직접 HTTP 접근에서는 `false`를 사용한다.
 쿠키 설정만으로 HTTPS가 제공되지는 않으며, 외부 공개 시에는 HTTPS 접속 경로를 마련한다.
-AI 제공자 키도 이후 같은 방식으로 `production` 환경 Secrets에 추가한다.
-실제 키는 Git에 커밋하지 않는다.
+AI 게이트웨이 키도 같은 방식으로 전달한다. 키는 Secret, 주소·모델·제한 시간은
+Variable로 등록한다. 실제 키는 Git에 커밋하지 않는다.
 
 SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이름 있는 Docker
 볼륨 `askmate-data`를 `/app/data`에 마운트하므로 컨테이너 교체 후에도 DB 파일을 유지한다.
@@ -106,6 +106,7 @@ SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이�
 | `TS_OAUTH_CLIENT_ID` | Tailscale Workload Identity Federation Client ID |
 | `TS_AUDIENCE` | Tailscale Workload Identity Federation Audience |
 | `SESSION_SECRET_KEY` | 세션 쿠키 서명키. 아래 명령으로 생성한 값을 등록한다 |
+| `AI_API_KEY` | AI 게이트웨이 API 키 |
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(32))"
@@ -133,8 +134,14 @@ Tailnet 접근 정책은 `tag:ci`에서 이 OCI 인스턴스의 SSH 포트로 �
 | `OCI_APP_PORT` | `8000` | OCI의 Tailscale IPv4 주소에 게시할 애플리케이션 포트 |
 | `SESSION_MAX_AGE` | `3600` | 로그인 후 세션 유효기간(초). 양의 정수 |
 | `SESSION_HTTPS_ONLY` | `false` | HTTPS 배포에서만 `true`로 설정 |
+| `AI_BASE_URL` | 없음 | OpenAI 호환 게이트웨이 주소. `/chat/completions` 앞까지 |
+| `AI_MODEL` | 없음 | 게이트웨이가 제공하는 모델 이름 |
+| `AI_TIMEOUT` | `30` | AI 응답 제한 시간(초). 양수 |
 
-`SESSION_MAX_AGE`와 `SESSION_HTTPS_ONLY`는 배포 전에 형식을 검증한다.
+`AI_BASE_URL`과 `AI_MODEL`은 기본값이 없으므로 반드시 등록한다.
+값이 없으면 앱이 시작하지 않아 배포가 실패한다.
+
+세션·AI 설정은 배포 전에 형식을 검증한다.
 잘못된 값이면 컨테이너를 교체하기 전에 워크플로가 실패한다.
 
 GitHub `production` 환경에는 승인자를 지정해 실제 배포 앞에 수동 승인 단계를 둘 수
