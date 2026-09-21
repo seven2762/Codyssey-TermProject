@@ -7,9 +7,11 @@ on:
     branches:
       - develop
       - main
+  # develop은 통합 기준이므로 머지 직후 서버를 그 상태로 맞춘다.
   push:
     branches:
       - main
+      - develop
     paths:
       - "backend/**"
       - ".github/workflows/deploy-oci.yml"
@@ -55,7 +57,8 @@ jobs:
     # 포크 PR은 환경 시크릿을 받지 못하므로 verify-image만 수행한다.
     if: >-
       github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')) ||
       (github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
@@ -132,6 +135,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
 
@@ -146,8 +150,11 @@ jobs:
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
             # 검증 중인 PR 이미지가 :latest를 덮어쓰지 않도록 한다.
             tags+=("${IMAGE_NAME}:pr-${PR_NUMBER}")
-          else
+          elif [[ "$REF_NAME" == "main" ]]; then
             tags+=("${IMAGE_NAME}:latest")
+          else
+            # develop 통합본은 latest와 구분해 둔다.
+            tags+=("${IMAGE_NAME}:${REF_NAME}")
           fi
 
           {
