@@ -5,8 +5,8 @@
 | 파일 | 역할 |
 | --- | --- |
 | `backend/app/llm.py` | HTTP 요청·응답, 인증 연결, 최근 대화 조회, 답변 저장, HTTP 오류 변환 |
-| `backend/app/llm_connect.py` | B가 실제 수정할 외부 AI 통신 모듈. 요청 구성·타임아웃·응답 추출 |
-| `backend/app/config.py` | 공통 환경변수 읽기. AI 설정을 추가할 때 사용 |
+| `backend/app/llm_connect.py` | 외부 AI 통신. 요청 구성·타임아웃·응답 추출·AI 로그 |
+| `backend/app/config.py` | 공통 환경변수 읽기. AI 키·주소·모델·제한 시간 검증 |
 | `backend/app/models/chat.py` | 구현된 대화 기록 모델 |
 | `backend/app/chat_db.py` | 저장 `create_chat()`, 전체 조회 `get_chats_by_user()`, 문맥 조회 `get_recent_chats_by_user()` |
 
@@ -84,7 +84,7 @@ API 키와 질문·답변 본문은 기록하지 않는다. 길이와 예외 종
 서버에 테스트 계정을 가입한 뒤 아래처럼 로그인하고 연결을 확인한다.
 `.env`와 계정 API 설정은 [인증 안내](AUTH.md)를 따른다.
 쿠키 파일에는 로그인 정보가 있으므로 임시 파일을 사용하고 확인 후 삭제한다.
-인증과 입력 검증을 통과한 경우의 501은 현재 의도한 결과이다.
+`.env`에 AI 설정이 없으면 서버가 시작되지 않는다.
 
 ```bash
 askmate_cookie_file=$(mktemp)
