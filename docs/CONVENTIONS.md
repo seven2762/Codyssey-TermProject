@@ -79,6 +79,7 @@ git switch -c feature/auth
 형식은 `<유형>: <변경 내용>`이며 설명은 한국어 또는 영어로 작성한다.
 유형은 `feat`, `fix`, `docs`, `chore`, `refactor`, `test`를 사용한다.
 브랜치 접두어 `feature`에 대응하는 커밋 유형은 `feat`이다.
+커밋은 기능 단위로 원자적으로 이루어져야 한다.
 
 ```text
 chore: backend uv 프로젝트와 실행 의존성 구성
