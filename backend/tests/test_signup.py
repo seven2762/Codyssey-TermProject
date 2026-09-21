@@ -162,5 +162,6 @@ def test_existing_pages_and_chat_validation(client):
     credentials = {"username": "chat_user", "password": PASSWORD}
     assert client.post("/api/signup", json=credentials).status_code == 201
     assert client.post("/api/login", json=credentials).status_code == 200
-    assert client.post("/api/chat", json={"question": "hello"}).status_code == 501
+    # 인증·검증을 통과하면 AI 통신 단계까지 간다. 테스트 설정의 주소는 해석되지 않는다.
+    assert client.post("/api/chat", json={"question": "hello"}).status_code == 502
     assert client.post("/api/chat", json={"question": " "}).status_code == 422

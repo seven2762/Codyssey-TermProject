@@ -12,6 +12,11 @@ def application(tmp_path_factory):
         patch.setenv("SESSION_SECRET_KEY", "test-session-secret-not-for-deployment")
         patch.setenv("SESSION_MAX_AGE", "3600")
         patch.setenv("SESSION_HTTPS_ONLY", "false")
+        # 테스트는 generate_answer를 대체하므로 실제 호출은 일어나지 않는다.
+        patch.setenv("AI_API_KEY", "test-ai-key-not-for-deployment")
+        patch.setenv("AI_BASE_URL", "https://ai.invalid/v1")
+        patch.setenv("AI_MODEL", "test-model")
+        patch.setenv("AI_TIMEOUT", "30")
         patch.chdir(directory)
         from app.main import app
 

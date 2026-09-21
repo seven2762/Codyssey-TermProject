@@ -107,19 +107,37 @@ def test_rejected_request_does_not_call_ai_or_save(client, logged_in_user, ai_ca
     assert read_chats() == []
 
 
-def test_unimplemented_ai_does_not_save(client, logged_in_user):
-    assert client.post("/api/chat", json={"question": "hello"}).status_code == 501
+def test_unreachable_ai_does_not_save(client, logged_in_user):
+    """테스트 설정의 AI_BASE_URL은 해석되지 않으므로 연결 실패로 502가 된다."""
+    assert client.post("/api/chat", json={"question": "hello"}).status_code == 502
     assert read_chats() == []
 
 
-def test_ai_failure_does_not_save(client, logged_in_user, monkeypatch):
+@pytest.mark.parametrize(
+    "error_name, status",
+    [("AITimeoutError", 504), ("AIServiceError", 502)],
+)
+def test_ai_failure_does_not_save(client, logged_in_user, monkeypatch, error_name, status):
+    from app import llm_connect
+
+    error_type = getattr(llm_connect, error_name)
+
+    async def fail(question, history):
+        raise error_type("test AI failure")
+
+    monkeypatch.setattr(llm_connect, "generate_answer", fail)
+    assert client.post("/api/chat", json={"question": "hello"}).status_code == status
+    assert read_chats() == []
+
+
+def test_unexpected_ai_error_does_not_save(client, logged_in_user, monkeypatch):
+    """AIError가 아닌 예외는 삼키지 않는다. 저장은 하지 않아야 한다."""
     from app import llm_connect
 
     async def fail(question, history):
         raise RuntimeError("test AI failure")
 
     monkeypatch.setattr(llm_connect, "generate_answer", fail)
-    # 외부 AI 오류의 HTTP 변환은 B의 후속 작업이다. 여기서는 저장되지 않는지만 확인한다.
     with pytest.raises(RuntimeError, match="test AI failure"):
         client.post("/api/chat", json={"question": "hello"})
     assert read_chats() == []
