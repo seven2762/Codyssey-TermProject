@@ -26,8 +26,31 @@
 | --- | --- | --- | --- |
 | `AI_API_KEY` | 예 | 없음 | 게이트웨이 API 키. `Authorization: Bearer`로 전송한다 |
 | `AI_BASE_URL` | 예 | 없음 | 게이트웨이 주소. `/chat/completions` 앞까지 적는다 |
-| `AI_MODEL` | 예 | 없음 | 게이트웨이가 제공하는 모델 이름 |
+| `AI_MODEL` | 예 | 없음 | 사용할 모델 이름 |
 | `AI_TIMEOUT` | 아니오 | `30` | 응답 제한 시간(초). 양수 |
+
+## 게이트웨이와 모델
+
+학교에서 제공하는 OpenAI 호환 게이트웨이 `https://copa.codyssey.kr/v1`을 사용한다.
+키는 이 게이트웨이에서 발급한 값이며, `Authorization: Bearer`로 전송한다.
+
+사용 가능한 모델은 아래 명령으로 확인한다.
+
+```bash
+curl -H "Authorization: Bearer $AI_API_KEY" https://copa.codyssey.kr/v1/models
+```
+
+기본값은 `gpt-5.4-mini`이다. 응답이 1초 내외로 빠르고 일상 질문에 충분하다.
+
+| 모델 | 상태 | 참고 |
+| --- | --- | --- |
+| `gpt-5.4-mini` | 사용 가능 | 현재 기본값 |
+| `gpt-5.4`, `gpt-5.5`, `gpt-5-mini` | 사용 가능 | |
+| `gemini-3.1-flash-lite`, `gemini-3-flash`, `gemini-3.1-pro` | 사용 가능 | `gemini-3.1-pro`는 약 5초로 느리다 |
+| `claude-haiku-4`, `claude-sonnet-4`, `claude-opus-4-7`, `claude-opus-4-8` | **사용 불가** | 현재 키로 호출하면 400 `Invalid request` |
+
+모델을 바꾸려면 코드 수정 없이 `AI_MODEL` 값만 변경한다.
+배포 환경은 `production` 환경 Variable로 설정한다.
 
 `config.py`가 기동 시점에 검증하므로, 값이 없거나 형식이 틀리면 앱이 시작하지 않는다.
 첫 질문에서가 아니라 배포 단계에서 설정 오류를 알 수 있다.
