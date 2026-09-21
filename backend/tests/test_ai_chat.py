@@ -69,7 +69,8 @@ def gateway():
     server.requests = []
     server.behaviour = "ok"
     server.release = threading.Event()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    # 기본 poll_interval 0.5초는 shutdown()을 그만큼 기다리게 해 테스트마다 낭비된다.
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     server.base_url = f"http://127.0.0.1:{server.server_address[1]}/v1"
     try:
