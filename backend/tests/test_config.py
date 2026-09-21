@@ -10,6 +10,17 @@ import pytest
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
+# config.py는 AI 설정도 기동 시점에 요구한다.
+# 다른 테스트가 os.environ에 남긴 값에 기대지 않도록 여기서 직접 지정한다.
+AI_SETTINGS = {
+    "AI_API_KEY": "test-config-ai-key",
+    "AI_BASE_URL": "https://ai.invalid/v1",
+    "AI_MODEL": "test-model",
+    "AI_TIMEOUT": "30",
+}
+AI_NAMES = (*AI_SETTINGS, )
+SESSION_NAMES = ("SESSION_SECRET_KEY", "SESSION_MAX_AGE", "SESSION_HTTPS_ONLY")
+
 
 @pytest.fixture
 def config_file(tmp_path):
@@ -32,14 +43,62 @@ def config_file(tmp_path):
 )
 def test_invalid_session_settings_fail_startup(config_file, settings, error_name):
     env = os.environ.copy()
-    for name in ("SESSION_SECRET_KEY", "SESSION_MAX_AGE", "SESSION_HTTPS_ONLY"):
+    for name in SESSION_NAMES:
         env.pop(name, None)
+    env.update(AI_SETTINGS)
     if error_name != "SESSION_SECRET_KEY":
         env["SESSION_SECRET_KEY"] = "test-config-secret"
     env.update(settings)
     result = subprocess.run([sys.executable, str(config_file)], env=env, capture_output=True, text=True)
     assert result.returncode != 0
     assert error_name in result.stderr
+
+
+@pytest.mark.parametrize(
+    "settings, error_name",
+    [
+        ({}, "AI_API_KEY"),
+        ({"AI_API_KEY": "   "}, "AI_API_KEY"),
+        ({"AI_BASE_URL": ""}, "AI_BASE_URL"),
+        ({"AI_BASE_URL": "ai.invalid/v1"}, "AI_BASE_URL"),
+        ({"AI_MODEL": ""}, "AI_MODEL"),
+        ({"AI_TIMEOUT": "0"}, "AI_TIMEOUT"),
+        ({"AI_TIMEOUT": "-1"}, "AI_TIMEOUT"),
+        ({"AI_TIMEOUT": "abc"}, "AI_TIMEOUT"),
+    ],
+)
+def test_invalid_ai_settings_fail_startup(config_file, settings, error_name):
+    """AI 설정이 잘못되면 첫 질문이 아니라 기동 시점에 실패해야 한다."""
+    env = os.environ.copy()
+    for name in (*SESSION_NAMES, *AI_NAMES):
+        env.pop(name, None)
+    env["SESSION_SECRET_KEY"] = "test-config-secret"
+    env.update({name: value for name, value in AI_SETTINGS.items() if name != error_name})
+    env.update(settings)
+    result = subprocess.run([sys.executable, str(config_file)], env=env, capture_output=True, text=True)
+    assert result.returncode != 0
+    assert error_name in result.stderr
+
+
+def test_ai_settings_are_read_from_environment(config_file):
+    env = os.environ.copy()
+    for name in (*SESSION_NAMES, *AI_NAMES):
+        env.pop(name, None)
+    env["SESSION_SECRET_KEY"] = "test-config-secret"
+    env.update(AI_SETTINGS)
+    env["AI_TIMEOUT"] = "12.5"
+    script = """
+import runpy, sys
+config = runpy.run_path(sys.argv[1])
+assert config['AI_API_KEY'] == 'test-config-ai-key'
+assert config['AI_BASE_URL'] == 'https://ai.invalid/v1'
+assert config['AI_MODEL'] == 'test-model'
+assert config['AI_TIMEOUT'] == 12.5
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(config_file)], env=env, capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_dotenv_and_environment_precedence(config_file, tmp_path):
@@ -49,8 +108,9 @@ def test_dotenv_and_environment_precedence(config_file, tmp_path):
         encoding="utf-8",
     )
     env = os.environ.copy()
-    for name in ("SESSION_SECRET_KEY", "SESSION_MAX_AGE", "SESSION_HTTPS_ONLY", "DATABASE_PATH"):
+    for name in (*SESSION_NAMES, "DATABASE_PATH"):
         env.pop(name, None)
+    env.update(AI_SETTINGS)
     script = """
 import runpy, sys
 config = runpy.run_path(sys.argv[1])
@@ -78,6 +138,7 @@ def test_https_cookie_is_not_sent_over_http(tmp_path):
         "SESSION_SECRET_KEY": "https-cookie-test-secret",
         "SESSION_MAX_AGE": "120",
         "SESSION_HTTPS_ONLY": "true",
+        **AI_SETTINGS,
     }
     script = """
 from fastapi.testclient import TestClient

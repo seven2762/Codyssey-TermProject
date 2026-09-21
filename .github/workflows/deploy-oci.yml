@@ -75,10 +75,14 @@ jobs:
       TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
       TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
       SESSION_SECRET_KEY: ${{ secrets.SESSION_SECRET_KEY }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
       OCI_SSH_PORT: ${{ vars.OCI_SSH_PORT || '22' }}
       OCI_APP_PORT: ${{ vars.OCI_APP_PORT || '8000' }}
       SESSION_MAX_AGE: ${{ vars.SESSION_MAX_AGE || '3600' }}
       SESSION_HTTPS_ONLY: ${{ vars.SESSION_HTTPS_ONLY || 'false' }}
+      AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+      AI_MODEL: ${{ vars.AI_MODEL }}
+      AI_TIMEOUT: ${{ vars.AI_TIMEOUT || '30' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -96,7 +100,10 @@ jobs:
             OCI_SSH_KNOWN_HOSTS \
             TS_OAUTH_CLIENT_ID \
             TS_AUDIENCE \
-            SESSION_SECRET_KEY
+            SESSION_SECRET_KEY \
+            AI_API_KEY \
+            AI_BASE_URL \
+            AI_MODEL
           do
             if [[ -z "${!required_name:-}" ]]; then
               echo "Missing required secret: ${required_name}" >&2
@@ -121,6 +128,16 @@ jobs:
 
           if [[ "$SESSION_HTTPS_ONLY" != "true" && "$SESSION_HTTPS_ONLY" != "false" ]]; then
             echo "SESSION_HTTPS_ONLY must be true or false." >&2
+            exit 1
+          fi
+
+          if [[ ! "$AI_BASE_URL" =~ ^https?:// ]]; then
+            echo "AI_BASE_URL must start with http:// or https://." >&2
+            exit 1
+          fi
+
+          if [[ ! "$AI_TIMEOUT" =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ "$AI_TIMEOUT" == 0 ]]; then
+            echo "AI_TIMEOUT must be a positive number of seconds." >&2
             exit 1
           fi
 
@@ -225,6 +242,10 @@ jobs:
             printf 'SESSION_SECRET_KEY=%s\n' "$SESSION_SECRET_KEY"
             printf 'SESSION_MAX_AGE=%s\n' "$SESSION_MAX_AGE"
             printf 'SESSION_HTTPS_ONLY=%s\n' "$SESSION_HTTPS_ONLY"
+            printf 'AI_API_KEY=%s\n' "$AI_API_KEY"
+            printf 'AI_BASE_URL=%s\n' "$AI_BASE_URL"
+            printf 'AI_MODEL=%s\n' "$AI_MODEL"
+            printf 'AI_TIMEOUT=%s\n' "$AI_TIMEOUT"
           } | ssh \
             -i "$HOME/.ssh/oci_deploy_key" \
             -p "$OCI_SSH_PORT" \

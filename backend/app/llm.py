@@ -11,7 +11,7 @@
 
    역할 분담
    - A: 인증·입력 검증, 최근 문맥 조회, 대화 저장, HTTP 응답 및 요청·DB 로그.
-   - B: llm_connect.py의 AI 통신을 구현하고, 이 파일에 통신 예외의 HTTP 변환을 연결한다.
+   - B: llm_connect.py의 AI 통신과 이 파일의 통신 예외 HTTP 변환.
      타임아웃은 504, AI 호출 실패는 502와 사용자용 안내 메시지로 반환한다.
    - AI 키·모델·타임아웃 설정과 AI 호출·성공·실패 로그는 B의 통신 모듈에서 담당한다.
 """
@@ -26,6 +26,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app import llm_connect
 from app.auth import get_current_user, require_csrf_header
+from app.llm_connect import AIServiceError, AITimeoutError
 from app.chat_db import create_chat, get_recent_chats_by_user
 from app.db_connect import get_db
 from app.logger import logger
@@ -62,12 +63,20 @@ async def chat(
             {"role": "assistant", "content": chat.answer},
         ])
 
-    # B 연동 작업: 통신 모듈의 타임아웃·호출 실패 예외를 여기서 HTTP 504·502로 변환한다.
-    # 현재는 AI 미구현 상태의 501만 처리한다. 기존 문맥 조회·저장 흐름은 유지한다.
+    # 제공자의 오류 상세와 키가 사용자 응답에 섞이지 않도록 안내 메시지만 반환한다.
+    # 실패 원인은 llm_connect의 ai_call_* 로그에 남는다.
     try:
         answer = await llm_connect.generate_answer(payload.question, history=history)
-    except NotImplementedError:
-        raise HTTPException(status_code=501, detail="AI 연결이 아직 구현되지 않았습니다.") from None
+    except AITimeoutError:
+        logger.warning("ai_failure operation=chat user_id=%s reason=timeout", user_id)
+        raise HTTPException(
+            status_code=504, detail="AI 응답이 지연되어 답변을 받지 못했습니다. 잠시 후 다시 시도해 주세요."
+        ) from None
+    except AIServiceError:
+        logger.warning("ai_failure operation=chat user_id=%s reason=service", user_id)
+        raise HTTPException(
+            status_code=502, detail="AI 서비스에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요."
+        ) from None
 
     try:
         # 동기 DB 저장이 다른 비동기 요청을 막지 않도록 스레드에서 실행한다.
