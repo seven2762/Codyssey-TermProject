@@ -45,25 +45,78 @@ OCI Compute 인스턴스에는 다음 항목이 준비되어 있어야 한다.
 - Tailscale 클라이언트와 고정된 Tailscale IPv4 주소
 - 비밀번호 없이 Docker 명령을 실행할 수 있는 배포용 SSH 사용자
 - 배포용 SSH 공개 키
-- Tailscale 인터페이스에서 SSH와 애플리케이션 포트를 허용하는 운영체제 방화벽 규칙
+- SSH는 Tailscale 인터페이스에만, 애플리케이션 포트는 공개로 허용하는 방화벽 규칙
+- 공인 IPv4 주소와 이를 허용하는 OCI Security List 인그레스 규칙
 
-기본 애플리케이션 포트는 `8000`이다. 컨테이너는 공인 인터페이스가 아니라 OCI의
-Tailscale IPv4 주소에만 이 포트를 게시한다. 따라서 SSH와 애플리케이션 포트를 위한
-공개 OCI NSG 또는 Security List 인바운드 규칙은 추가하지 않는다.
+기본 애플리케이션 포트는 `8000`이다. 컨테이너는 이 포트를 모든 인터페이스(`0.0.0.0`)에
+게시하므로, 누구나 `http://<공인 IP>:8000`으로 서비스를 사용할 수 있다.
+배포 접속 경로인 SSH는 계속 Tailscale로만 열어 둔다.
 
-OCI에서 다음 명령으로 배포 대상 Tailscale IPv4 주소를 확인한다.
-
-```bash
-tailscale ip -4
-```
-
-Ubuntu에서 SSH 22번과 애플리케이션 8000번을 Tailscale 인터페이스에만 허용하는 예시는
-다음과 같다. 실제 SSH 포트 또는 `OCI_APP_PORT`가 다르면 해당 값을 사용한다.
+OCI에서 다음 명령으로 두 주소를 확인한다.
 
 ```bash
-sudo ufw allow in on tailscale0 to any port 22 proto tcp
-sudo ufw allow in on tailscale0 to any port 8000 proto tcp
+tailscale ip -4                      # 배포용 SSH 접속 주소 (OCI_HOST 시크릿)
+curl -s https://ifconfig.me; echo    # 사용자에게 안내할 공인 IP
 ```
+
+### 서버 방화벽
+
+Ubuntu 기준이다. 실제 SSH 포트나 `OCI_APP_PORT`가 다르면 해당 값을 쓴다.
+
+```bash
+sudo ufw allow in on tailscale0 to any port 22 proto tcp   # SSH는 Tailscale만
+sudo ufw allow 8000/tcp                                    # 애플리케이션은 공개
+sudo ufw status
+```
+
+### OCI Security List 인그레스 규칙
+
+서버 방화벽만 열어서는 접속되지 않는다. OCI 콘솔에서도 허용해야 한다.
+
+1. `Networking > Virtual Cloud Networks`에서 인스턴스가 속한 VCN을 연다.
+2. 해당 서브넷의 `Security Lists`(또는 `Network Security Groups`)를 연다.
+3. `Add Ingress Rules`로 아래 규칙을 추가한다.
+
+| 항목 | 값 |
+| --- | --- |
+| Stateless | No |
+| Source Type | CIDR |
+| Source CIDR | `0.0.0.0/0` |
+| IP Protocol | TCP |
+| Destination Port Range | `8000` |
+
+SSH(22번)용 공개 규칙은 추가하지 않는다. SSH는 Tailscale 경로만 사용한다.
+
+### 접속 확인
+
+```bash
+curl --fail http://<공인 IP>:8000/health
+```
+
+`{"status":"ok"}`가 나오면 외부에서 접속할 수 있는 상태다.
+실패하면 서버 방화벽(`ufw status`)과 OCI Security List를 순서대로 확인한다.
+
+### 통신 구간 보호
+
+현재 공개 경로는 HTTP다. 로그인 비밀번호와 세션 쿠키가 암호화되지 않은 채 전송된다.
+평가나 시연처럼 짧게 공개하는 용도라면 그대로 쓸 수 있지만, 계속 공개해 둔다면
+아래처럼 HTTPS를 붙이는 편이 안전하다. 도메인을 사지 않아도 된다.
+
+`sslip.io`는 IP가 들어간 호스트 이름을 그 IP로 되돌려주는 공개 DNS다.
+`203.0.113.10.sslip.io` 같은 이름을 쓰면 Let's Encrypt 인증서를 받을 수 있다.
+
+```bash
+# 서버에서 Caddy를 리버스 프록시로 실행한다. 인증서는 자동으로 발급·갱신된다.
+sudo ufw allow 80/tcp && sudo ufw allow 443/tcp
+docker run -d --name askmate-proxy --restart unless-stopped \
+  --network host \
+  caddy:2 caddy reverse-proxy \
+  --from <공인 IP를 점으로 이은 이름>.sslip.io --to 127.0.0.1:8000
+```
+
+OCI Security List에도 80·443 인그레스를 추가한다.
+HTTPS로 서비스한 뒤에는 `production` 환경 Variable `SESSION_HTTPS_ONLY`를 `true`로 바꾼다.
+쿠키에 `Secure` 속성이 붙어 HTTP로는 전송되지 않는다.
 
 ### 애플리케이션 환경 변수 전달
 
