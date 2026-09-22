@@ -293,6 +293,7 @@ jobs:
             exit 1
           fi
 
+          # OCI_HOST는 배포용 SSH 접속 경로다. 서비스 공개 주소와는 별개다.
           if ! tailscale ip -4 | grep -Fxq "$OCI_BIND_HOST"; then
             echo "OCI_HOST is not assigned to this server's Tailscale interface." >&2
             exit 1
@@ -310,7 +311,9 @@ jobs:
             --detach
             --name "$CONTAINER_NAME"
             --restart unless-stopped
-            --publish "${OCI_BIND_HOST}:${OCI_APP_PORT}:8000"
+            # 외부 사용자가 공인 IP로 접속할 수 있도록 모든 인터페이스에 게시한다.
+            # 실제 노출 범위는 OCI Security List와 서버 방화벽이 결정한다.
+            --publish "0.0.0.0:${OCI_APP_PORT}:8000"
             --mount "type=volume,source=askmate-data,target=/app/data"
           )
 
