@@ -309,4 +309,5 @@ async function handleLogout() {
     }
     setGuestUI();
     if (typeof resetChatWindow === 'function') resetChatWindow();
+    window.location.assign('/login');
 }

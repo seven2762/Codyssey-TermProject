@@ -15,8 +15,10 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
 
 @router.get("/", include_in_schema=False)
-def index():
-    return RedirectResponse(url="/login", status_code=307)
+def index(user: Annotated[User | None, Depends(get_session_user)]):
+    if user is not None:
+        return RedirectResponse(url="/chat", status_code=303)
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -27,7 +29,9 @@ def login_page(request: Request, user: Annotated[User | None, Depends(get_sessio
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request):
+def signup_page(request: Request, user: Annotated[User | None, Depends(get_session_user)]):
+    if user is not None:
+        return RedirectResponse(url="/chat", status_code=303)
     return templates.TemplateResponse(request=request, name="signup.html")
 
 
