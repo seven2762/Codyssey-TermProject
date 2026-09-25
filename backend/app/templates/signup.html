@@ -1,6 +1,44 @@
-{% extends "base.html" %}
-{% block title %}회원가입{% endblock %}
-{% block content %}
-<h1>회원가입</h1>
-<p>회원가입 화면을 준비 중입니다.</p>
-{% endblock %}
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>회원가입 | AskMate</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+</head>
+<body class="auth-page">
+    <div class="auth-card">
+        <div class="logo">AskMate</div>
+        <div class="subtitle">새 계정을 생성하고 대화를 기록해 보세요.</div>
+
+        <form id="signup-form">
+            <div id="signup-error-msg" class="error-msg-box"></div>
+
+            <div class="form-group">
+                <label for="signup-username">아이디</label>
+                <input id="signup-username" name="username" type="text" autocomplete="username" placeholder="영문, 숫자, 밑줄(_) 3~30자" required autofocus>
+                <div class="field-hint">영문, 숫자, 밑줄(_)만 사용 가능 (3~30자)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="signup-password">비밀번호</label>
+                <input id="signup-password" name="password" type="password" autocomplete="new-password" placeholder="비밀번호 15자 이상" required>
+                <div class="field-hint">안전을 위해 15자 이상 입력해 주세요</div>
+            </div>
+
+            <div class="form-group">
+                <label for="signup-password-confirm">비밀번호 확인</label>
+                <input id="signup-password-confirm" name="password_confirm" type="password" autocomplete="new-password" placeholder="비밀번호를 한 번 더 입력하세요" required>
+            </div>
+
+            <button id="signup-btn" class="btn-submit" type="submit">회원가입</button>
+        </form>
+
+        <div class="auth-footer">
+            <span>이미 계정이 있으신가요? <a href="/login">로그인하기</a></span>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', path='/js/auth_page.js') }}" defer></script>
+</body>
+</html>
