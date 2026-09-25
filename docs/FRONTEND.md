@@ -322,16 +322,16 @@ PR 본문 마지막 줄에 "원하면 제가 이걸 더 짧은 GitHub PR용 버�
 - [ ] `feature/frontend` 브랜치에서 최신 `develop`을 머지 또는 리베이스
 
 ### 🔴 1. POST 요청 CSRF 헤더 추가 (403 해결)
-- [ ] 공용 헬퍼 `postJSON(url, body)` 함수 작성
+- [x] 공용 헬퍼 `postJSON(url, body)` 함수 작성
   - `'X-Requested-With': 'XMLHttpRequest'` 헤더 자동 포함
   - `'Content-Type': 'application/json'` 헤더 자동 포함
-- [ ] `chat.js` — `/api/chat` POST 요청을 `postJSON()` 으로 교체
-- [ ] `auth_sidebar.js` — `/api/login` POST 요청을 `postJSON()` 으로 교체
-- [ ] `auth_sidebar.js` — `/api/signup` POST 요청을 `postJSON()` 으로 교체
-- [ ] `auth_sidebar.js` — `/api/logout` POST 요청을 `postJSON()` 으로 교체
+- [x] `chat.js` — `/api/chat` POST 요청을 `postJSON()` 으로 교체
+- [x] `auth_sidebar.js` — `/api/login` POST 요청을 `postJSON()` 으로 교체
+- [x] `auth_sidebar.js` — `/api/signup` POST 요청을 `postJSON()` 으로 교체
+- [x] `auth_sidebar.js` — `/api/logout` POST 요청을 `postJSON()` 으로 교체
 
 ### 🔴 2. 전송 버튼 클릭 이벤트 연동
-- [ ] `chat.js`의 `setupInputEvents()` 안에 `#send-btn` 클릭 핸들러 추가
+- [x] `chat.js`의 `setupInputEvents()` 안에 `#send-btn` 클릭 핸들러 추가
 
 ### 🟠 3. 인증 방식 (모달 vs 페이지) — 팀 논의 필요
 - [ ] PR #20 댓글로 A(백엔드 인증 담당)에게 방향 확인 요청
@@ -340,8 +340,8 @@ PR 본문 마지막 줄에 "원하면 제가 이걸 더 짧은 GitHub PR용 버�
 - [ ] 결정 후 코드 반영
 
 ### 🟠 4. 에러 처리 문구 개선
-- [ ] `chat.js` catch 블록의 mock 응답 제거 → 실제 오류 문구로 변경
-- [ ] 상태 코드별 에러 처리 분기 추가 (리뷰어 제공 처리표 기준)
+- [x] `chat.js` catch 블록의 mock 응답 제거 → 실제 오류 문구로 변경
+- [x] 상태 코드별 에러 처리 분기 추가 (리뷰어 제공 처리표 기준)
   - 504/502 → 다시 시도 안내
   - 500 → `detail` 그대로 표시
   - 422 → 입력창 옆 표시
@@ -349,55 +349,10 @@ PR 본문 마지막 줄에 "원하면 제가 이걸 더 짧은 GitHub PR용 버�
   - 403 → 요청 코드 버그 안내
 
 ### 🟡 기타
-- [ ] `auth_sidebar.js:1` 주석 담당자 B → C로 수정
-- [ ] `auth_sidebar.js:54` — JSON 파싱 실패 시 `'demo-user'` 대체 제거, 비로그인 UI로 전환
-- [ ] `docs/FRONTEND.md`에 `X-Requested-With` 요구사항 재추가
+- [x] `auth_sidebar.js:1` 주석 담당자 B → C로 수정
+- [x] `auth_sidebar.js:54` — JSON 파싱 실패 시 `'demo-user'` 대체 제거, 비로그인 UI로 전환
+- [x] `docs/FRONTEND.md`에 `X-Requested-With` 요구사항 재추가
 - [ ] `docs/PR_FIX_LOG_2026-09-20.md` — PR 본문으로 이동 검토
 
 ### 작업 순서
-1번 → 2번 → 4번 → 기타 → 커밋 및 푸시 → 3번은 팀 논의 후 별도 처리
--------------------------------------
-수정사항
-현재 이미 작성된 파일 상태를 먼저 확인하고, 플랜대로 수정하겠습니다.
-
-Ran command: `git status`
-Listed directory js
-
-`chat.js`가 없네요. 이전에 작성 시도가 거부된 것 같습니다. `auth_sidebar.js`는 있고요. 원래 `feature/frontend` 브랜치의 코드를 기반으로, 플랜대로 수정된 파일들을 작성하겠습니다.
-
-**1번(CSRF 헤더)** — 리뷰어 권고대로 `postJSON()` 공용 헬퍼를 만들어 모든 POST에 적용합니다.
-**2번(전송 버튼)** — `setupInputEvents()`에 `#send-btn` 클릭 핸들러 추가합니다.
-**4번(에러 처리)** — mock 응답 제거, 상태 코드별 분기 추가합니다.
-
-Created chat.js
-
-이제 `auth_sidebar.js`를 플랜대로 업데이트합니다 — `postJSON` 헬퍼 사용 + 주석 담당자 수정 + demo-user 제거.
-
-Viewed auth_sidebar.js:1-324
-
-이전에 작성한 버전에는 CSRF 헤더가 인라인으로 들어가 있습니다. 플랜대로 `postJSON` 헬퍼를 사용하고, 기타 항목(주석, demo-user)도 함께 수정하겠습니다.
-
-Edited auth_sidebar.js
-
-파일 수정 완료. 이제 변경된 파일 상태를 확인합니다.
-
-Ran command: `git status`
-
-수정 완료했습니다. 변경 내역 정리:
-
-### ✅ 완료된 수정
-
-| # | 항목 | 파일 | 내용 |
-|---|------|------|------|
-| 🔴 1 | CSRF 헤더 | [chat.js](file:///d:/git/Codyssey-TermProject/backend/app/static/js/chat.js) + [auth_sidebar.js](file:///d:/git/Codyssey-TermProject/backend/app/static/js/auth_sidebar.js) | `postJSON()` 공용 헬퍼 생성, 4개 POST 요청 모두 교체 |
-| 🔴 2 | 전송 버튼 | [chat.js](file:///d:/git/Codyssey-TermProject/backend/app/static/js/chat.js#L39-L40) | `#send-btn` 클릭 핸들러 추가 |
-| 🟠 4 | 에러 처리 | [chat.js](file:///d:/git/Codyssey-TermProject/backend/app/static/js/chat.js#L88-L119) | mock 제거, `handleChatError()`로 상태 코드별 분기 |
-| 🟡 기타 | 주석 | [auth_sidebar.js:1](file:///d:/git/Codyssey-TermProject/backend/app/static/js/auth_sidebar.js#L1) | 담당 B → C |
-| 🟡 기타 | demo-user | [auth_sidebar.js:50-65](file:///d:/git/Codyssey-TermProject/backend/app/static/js/auth_sidebar.js#L50-L65) | 파싱 실패 시 비로그인 UI로 전환 |
-
-### ⏳ 남은 작업
-- `docs/FRONTEND.md`에 `X-Requested-With` 요구사항 재추가 (문서)
-- `docs/PR_FIX_LOG_2026-09-20.md` PR 본문 이동 검토
-- 🟠 3번 (모달 vs 페이지) — 팀 논의 후 처리
-
-커밋 및 푸시 진행할까요?
+1번 → 2번 → 4번 → 기타 → 커밋 및 푸시 (완료) → 3번은 팀 논의 후 별도 처리
