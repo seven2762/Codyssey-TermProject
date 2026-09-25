@@ -72,15 +72,8 @@ async function sendQuestion() {
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            let errorText = '현재 응답이 지연되고 있어요. 잠시 후 다시 시도해 주세요. (error: AI_TIMEOUT)';
-            if (errData.detail) {
-                if (typeof errData.detail === 'string') {
-                    errorText = errData.detail;
-                } else if (Array.isArray(errData.detail)) {
-                    errorText = errData.detail.map(i => i.msg || JSON.stringify(i)).join(', ');
-                }
-            }
-            appendMessage('ai', errorText, 'error-bubble');
+            // 상태 코드별 에러 메시지 분기 처리
+            handleChatError(response.status, errData);
             return;
         }
 
@@ -89,9 +82,48 @@ async function sendQuestion() {
         if (typeof loadHistoryIndex === 'function') loadHistoryIndex();
     } catch (error) {
         removeMessage(loadingId);
-        appendMessage('ai', `프론트엔드 mock 응답: “${question}”에 대한 답변을 준비 중입니다. 백엔드 API가 연결되면 실제 응답으로 교체됩니다.`, 'error-bubble');
+        // mock 응답 제거 → 실제 에러 문구 표시
+        appendMessage('ai', '⚠️ 네트워크 오류가 발생했습니다. 인터넷 연결을 확인하고 다시 시도해 주세요.', 'error-bubble');
     }
     scrollToBottom();
+}
+
+// 상태 코드별 에러 처리 분기
+function handleChatError(status, errData) {
+    const detail = errData.detail;
+    let errorText;
+
+    switch (status) {
+        case 504:
+        case 502:
+            errorText = '⚠️ AI 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
+            break;
+        case 500:
+            errorText = (typeof detail === 'string') ? detail : '⚠️ 서버 오류가 발생했습니다.';
+            break;
+        case 422:
+            errorText = '⚠️ 입력이 올바르지 않습니다. 내용을 확인해 주세요.';
+            break;
+        case 401:
+            errorText = '⚠️ 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.';
+            if (typeof openModal === 'function') openModal('login-modal');
+            break;
+        case 403:
+            errorText = '⚠️ 요청이 차단되었습니다. 페이지를 새로고침해 주세요.';
+            break;
+        default:
+            if (detail) {
+                if (typeof detail === 'string') {
+                    errorText = detail;
+                } else if (Array.isArray(detail)) {
+                    errorText = detail.map(i => i.msg || JSON.stringify(i)).join(', ');
+                }
+            } else {
+                errorText = '⚠️ 알 수 없는 오류가 발생했습니다.';
+            }
+    }
+
+    appendMessage('ai', errorText, 'error-bubble');
 }
 
 function appendMessage(sender, text, extraClass = '') {
