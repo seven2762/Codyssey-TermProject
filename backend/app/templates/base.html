@@ -5,18 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}AskMate{% endblock %} | AskMate</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
-    <script src="{{ url_for('static', path='/js/main.js') }}" defer></script>
+    <script src="{{ url_for('static', path='/js/common.js') }}" defer></script>
+    {% block scripts %}{% endblock %}
 </head>
 <body>
-    <header>
-        <p>AskMate</p>
-        <nav aria-label="주 메뉴">
-            <a href="{{ url_for('login_page') }}">로그인</a>
-            <a href="{{ url_for('signup_page') }}">회원가입</a>
-            <a href="{{ url_for('chat_page') }}">채팅</a>
-            <a href="{{ url_for('history_page') }}">대화 기록</a>
-        </nav>
+    <header class="app-header">
+        <div class="header-inner">
+            <a href="{% if user %}{{ url_for('chat_page') }}{% else %}{{ url_for('login_page') }}{% endif %}" class="brand-logo">
+                <span class="logo-icon">🤖</span>
+                <span class="logo-text">AskMate</span>
+            </a>
+            <nav class="nav-menu" aria-label="주 메뉴">
+                {% if user %}
+                <a href="{{ url_for('chat_page') }}" class="nav-link {% if request.url.path == '/chat' %}active{% endif %}">채팅</a>
+                <a href="{{ url_for('history_page') }}" class="nav-link {% if request.url.path == '/history' %}active{% endif %}">대화 기록</a>
+                <div class="user-profile-menu">
+                    <span class="user-badge" title="로그인 사용자">
+                        <span class="user-avatar">👤</span>
+                        <strong class="user-name" id="navUsername">{{ user.username }}</strong>
+                    </span>
+                    <button type="button" class="btn btn-outline btn-sm logout-btn" id="navLogoutBtn">로그아웃</button>
+                </div>
+                {% else %}
+                <a href="{{ url_for('login_page') }}" class="nav-link {% if request.url.path == '/login' %}active{% endif %}">로그인</a>
+                <a href="{{ url_for('signup_page') }}" class="nav-link {% if request.url.path == '/signup' %}active{% endif %}">회원가입</a>
+                {% endif %}
+            </nav>
+        </div>
     </header>
-    <main>{% block content %}{% endblock %}</main>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+        <div class="footer-inner">
+            <p>&copy; 2026 AskMate. AI 대화 서비스</p>
+        </div>
+    </footer>
 </body>
 </html>
