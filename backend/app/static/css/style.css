@@ -308,3 +308,70 @@ textarea:focus {
     text-align: center;
     font-size: 13px;
 }
+
+/* 독립 인증(로그인/회원가입) 페이지 레이아웃 */
+body.auth-page {
+    overflow: auto;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f4f9;
+}
+
+.auth-card {
+    background: #ffffff;
+    width: 380px;
+    max-width: 90%;
+    padding: 32px 28px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.auth-card .logo {
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: #0b57d0;
+    margin-bottom: 6px;
+}
+
+.auth-card .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #5f6368;
+    margin-bottom: 24px;
+}
+
+.auth-card .form-group label {
+    font-weight: 500;
+}
+
+.auth-card .field-hint {
+    font-size: 11px;
+    color: #707070;
+    margin-top: 4px;
+}
+
+.auth-card .btn-submit {
+    margin-top: 8px;
+    padding: 12px;
+    font-size: 15px;
+}
+
+.auth-footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 13px;
+    color: #5f6368;
+}
+
+.auth-footer a {
+    color: #0b57d0;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.auth-footer a:hover {
+    text-decoration: underline;
+}
