@@ -22,6 +22,12 @@ function setupInputEvents() {
             sendQuestion();
         }
     });
+
+    // 전송 버튼 클릭 이벤트 연동
+    const sendBtn = document.getElementById('send-btn');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendQuestion);
+    }
 }
 
 async function sendQuestion() {
