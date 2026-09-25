@@ -1,3 +1,16 @@
+// 공용 POST 헬퍼 — CSRF 헤더(X-Requested-With)를 자동으로 포함한다.
+// 서버 CSRF 검사 정책은 docs/AUTH.md 참고.
+async function postJSON(url, body) {
+    return fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     setupInputEvents();
 });
@@ -53,11 +66,7 @@ async function sendQuestion() {
     scrollToBottom();
 
     try {
-        const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: question })
-        });
+        const response = await postJSON('/api/chat', { question: question });
 
         removeMessage(loadingId);
 

@@ -211,10 +211,10 @@ async function handleLogin(e) {
     pInput.classList.remove('input-error');
 
     try {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: uInput.value.trim(), password: pInput.value })
+        // postJSON 헬퍼 사용 — CSRF 헤더 자동 포함
+        const response = await postJSON('/api/login', {
+            username: uInput.value.trim(),
+            password: pInput.value
         });
 
         if (!response.ok) {
@@ -263,10 +263,10 @@ async function handleSignup(e) {
     }
 
     try {
-        const response = await fetch('/api/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: uInput.value.trim(), password: pInput.value })
+        // postJSON 헬퍼 사용 — CSRF 헤더 자동 포함
+        const response = await postJSON('/api/signup', {
+            username: uInput.value.trim(),
+            password: pInput.value
         });
 
         if (!response.ok) {
@@ -297,7 +297,8 @@ async function handleSignup(e) {
 
 async function handleLogout() {
     try {
-        const response = await fetch('/api/logout', { method: 'POST' });
+        // postJSON 헬퍼 사용 — CSRF 헤더 자동 포함
+        const response = await postJSON('/api/logout');
         if (response.status !== 204 && response.ok) {
             await response.json().catch(() => ({}));
         }
