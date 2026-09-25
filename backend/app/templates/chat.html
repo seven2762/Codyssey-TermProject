@@ -1,6 +1,78 @@
 {% extends "base.html" %}
 {% block title %}채팅{% endblock %}
 {% block content %}
-<h1>채팅</h1>
-<p>질문 입력과 답변 표시 기능을 준비 중입니다.</p>
+<div class="chat-container">
+    <div class="chat-card">
+        <!-- 채팅 상단 헤더 -->
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <span class="chat-ai-avatar">🤖</span>
+                <div>
+                    <h2 class="chat-ai-name">AskMate AI</h2>
+                    <span class="chat-status"><span class="status-dot"></span> 최근 5쌍 문맥 반영 중</span>
+                </div>
+            </div>
+            <div class="chat-header-actions">
+                <a href="{{ url_for('history_page') }}" class="btn btn-outline btn-sm">대화 기록 보기</a>
+            </div>
+        </div>
+
+        <!-- 메시지 표시 영역 -->
+        <div id="chatMessages" class="chat-messages" role="log" aria-live="polite">
+            <!-- 기본 환영 메시지 -->
+            <div class="chat-bubble ai-bubble intro-bubble">
+                <div class="bubble-avatar">🤖</div>
+                <div class="bubble-body">
+                    <div class="bubble-author">AskMate AI</div>
+                    <div class="bubble-content">
+                        안녕하세요, <strong>{{ user.username }}</strong>님! 무엇이든 편하게 물어보세요. 질문하시면 최근 5쌍의 대화 문맥을 기억하여 답변해 드립니다.
+                    </div>
+                    <div class="quick-questions">
+                        <span class="quick-title">추천 질문:</span>
+                        <button type="button" class="quick-chip" data-question="안녕하세요! 어떤 질문을 할 수 있나요?">어떤 질문을 할 수 있나요?</button>
+                        <button type="button" class="quick-chip" data-question="FastAPI와 Uvicorn의 특징을 간단히 설명해줘.">FastAPI 특징 설명해줘</button>
+                        <button type="button" class="quick-chip" data-question="간단한 파이썬 비동기 async/await 예시를 보여줘.">비동기 프로그래밍 예시</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 응답 지연/연결 실패 알림 및 재시도 배너 -->
+        <div id="chatErrorBanner" class="chat-error-banner" style="display: none;" role="alert">
+            <div class="error-icon">⚠️</div>
+            <div class="error-text" id="chatErrorText">오류가 발생했습니다.</div>
+            <div class="error-actions">
+                <button type="button" id="chatRetryBtn" class="btn btn-warning btn-sm">다시 시도</button>
+                <button type="button" id="chatDismissErrorBtn" class="btn-icon close-icon" aria-label="닫기">✕</button>
+            </div>
+        </div>
+
+        <!-- 질문 입력 영역 -->
+        <div class="chat-input-container">
+            <form id="chatForm" class="chat-form">
+                <div class="chat-input-wrapper">
+                    <textarea 
+                        id="chatInput" 
+                        class="chat-textarea" 
+                        placeholder="메시지를 입력하세요 (Enter: 전송, Shift+Enter: 줄바꿈)" 
+                        rows="1" 
+                        maxlength="1000" 
+                        required
+                    ></textarea>
+                </div>
+                <div class="chat-controls">
+                    <span id="charCounter" class="char-counter">0 / 1000자</span>
+                    <button type="submit" id="chatSendBtn" class="btn btn-primary chat-send-btn" disabled>
+                        <span class="btn-text">전송</span>
+                        <span class="btn-icon">➤</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/chat.js') }}" defer></script>
 {% endblock %}
