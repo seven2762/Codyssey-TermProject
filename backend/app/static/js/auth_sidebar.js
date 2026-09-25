@@ -1,4 +1,4 @@
-// 담당자 B: 사용자 인증, 로그인/회원가입 모달, 사이드바 대화 기록 관리 전담
+// 담당 C: 사용자 인증, 로그인/회원가입 모달, 사이드바 대화 기록 관리 담당
 
 let currentUser = null;
 
@@ -51,14 +51,16 @@ async function checkAuthStatus() {
     try {
         const response = await fetch('/api/me', { method: 'GET' });
         if (response.ok) {
-            const data = await response.json().catch(() => ({ username: 'demo-user' }));
-            currentUser = data.username || 'demo-user';
-            setLoggedInUI(currentUser);
-            loadHistoryIndex();
-            return;
+            const data = await response.json();
+            if (data && data.username) {
+                currentUser = data.username;
+                setLoggedInUI(currentUser);
+                loadHistoryIndex();
+                return;
+            }
         }
     } catch (e) {
-        // 프론트 UI는 비로그인 상태로 자연스럽게 표시한다.
+        // 에러 시 UI를 비로그인 상태로 자연스럽게 표시한다.
     }
     setGuestUI();
 }
