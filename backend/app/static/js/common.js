@@ -27,8 +27,8 @@ async function apiRequest(url, options = {}) {
     try {
         const response = await fetch(url, options);
 
-        // 401: 비로그인 또는 세션 만료
-        if (response.status === 401) {
+        // 401: 비로그인 또는 세션 만료 (로그인 요청 등은 skipAuthRedirect로 실제 응답을 그대로 사용)
+        if (response.status === 401 && !options.skipAuthRedirect) {
             if (window.location.pathname !== "/login") {
                 window.location.assign("/login");
             }

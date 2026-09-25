@@ -27,7 +27,9 @@ def login_page(request: Request, user: Annotated[User | None, Depends(get_sessio
 
 
 @router.get("/signup", response_class=HTMLResponse)
-def signup_page(request: Request):
+def signup_page(request: Request, user: Annotated[User | None, Depends(get_session_user)]):
+    if user is not None:
+        return RedirectResponse(url="/chat", status_code=303)
     return templates.TemplateResponse(request=request, name="signup.html")
 
 

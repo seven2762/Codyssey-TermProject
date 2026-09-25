@@ -43,7 +43,7 @@ def test_signup_saves_user_with_random_salt(client, caplog):
     assert first.password_hash not in caplog.text
 
 
-@pytest.mark.parametrize("password", ["p" * 15, "p" * 128, "긴 비밀번호 문장입니다 반갑습니다"])
+@pytest.mark.parametrize("password", ["p" * 8, "p" * 128, "긴 비밀번호 문장입니다 반갑습니다"])
 def test_password_boundaries(client, password):
     response = client.post("/api/signup", json={"username": "valid_user", "password": password})
     assert response.status_code == 201
@@ -59,7 +59,7 @@ def test_password_boundaries(client, password):
         {"username": "   ", "password": PASSWORD},
         {"username": "has space", "password": PASSWORD},
         {"username": "invalid!", "password": PASSWORD},
-        {"username": "valid_user", "password": "p" * 14},
+        {"username": "valid_user", "password": "p" * 7},
         {"username": "valid_user", "password": "p" * 129},
         {"username": "valid_user", "password": 123456789012345},
         {"username": "valid_user", "password": {"secret": PASSWORD}},

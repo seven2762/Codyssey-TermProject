@@ -42,7 +42,7 @@ type Username = Annotated[
 
 class SignUpPayload(BaseModel):
     username: Username
-    password: Annotated[SecretStr, Field(min_length=15, max_length=128)]
+    password: Annotated[SecretStr, Field(min_length=8, max_length=128)]
 
 
 class LoginPayload(BaseModel):
