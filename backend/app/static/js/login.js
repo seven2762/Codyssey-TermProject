@@ -44,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const res = await apiRequest("/api/login", {
             method: "POST",
             body: { username, password },
+            skipAuthRedirect: true,
         });
 
         if (res.ok) {
