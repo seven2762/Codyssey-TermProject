@@ -9,8 +9,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
-env
-/env
 
 # Runtime database files and logs
 *.db
