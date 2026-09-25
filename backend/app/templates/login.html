@@ -1,84 +1,65 @@
 {% extends "base.html" %}
-{% block title %}회원가입{% endblock %}
+{% block title %}로그인{% endblock %}
 {% block content %}
 <div class="auth-container">
     <div class="auth-card">
         <div class="auth-header">
-            <h1 class="auth-title">회원가입</h1>
-            <p class="auth-subtitle">AskMate 계정을 생성하고 나만의 AI 대화를 시작하세요.</p>
+            <h1 class="auth-title">로그인</h1>
+            <p class="auth-subtitle">AskMate AI 챗봇 서비스를 이용하시려면 로그인해 주세요.</p>
         </div>
 
-        <div id="signupAlert" class="alert" style="display: none;" role="alert"></div>
+        <div id="loginAlert" class="alert" style="display: none;" role="alert"></div>
 
-        <form id="signupForm" class="auth-form" novalidate>
+        <form id="loginForm" class="auth-form" novalidate>
             <div class="form-group">
-                <label for="signupUsername" class="form-label">아이디 (사용자명)</label>
+                <label for="loginUsername" class="form-label">아이디 (사용자명)</label>
                 <input 
                     type="text" 
-                    id="signupUsername" 
+                    id="loginUsername" 
                     name="username" 
                     class="form-input" 
-                    placeholder="3~30자의 영문, 숫자, 밑줄(_)" 
+                    placeholder="아이디를 입력하세요" 
                     autocomplete="username" 
                     required 
                     autofocus
                 >
-                <span class="form-hint">영문, 숫자, 밑줄(_)만 가능하며 3자 이상 30자 이하로 입력해 주세요.</span>
             </div>
 
             <div class="form-group">
-                <label for="signupPassword" class="form-label">비밀번호</label>
+                <div class="label-row">
+                    <label for="loginPassword" class="form-label">비밀번호</label>
+                </div>
                 <div class="password-input-wrapper">
                     <input 
                         type="password" 
-                        id="signupPassword" 
+                        id="loginPassword" 
                         name="password" 
                         class="form-input" 
-                        placeholder="8자 이상의 비밀번호" 
-                        autocomplete="new-password" 
+                        placeholder="비밀번호를 입력하세요" 
+                        autocomplete="current-password" 
                         required
                     >
-                    <button type="button" class="btn-icon toggle-password" data-target="signupPassword" title="비밀번호 표시/숨김" aria-label="비밀번호 표시 토글">
+                    <button type="button" class="btn-icon toggle-password" data-target="loginPassword" title="비밀번호 표시/숨김" aria-label="비밀번호 표시 토글">
                         👁️
                     </button>
                 </div>
-                <span class="form-hint">안전한 사용을 위해 8자 이상 128자 이하로 입력해 주세요. (공백 및 유니코드 가능)</span>
-            </div>
-
-            <div class="form-group">
-                <label for="signupPasswordConfirm" class="form-label">비밀번호 확인</label>
-                <div class="password-input-wrapper">
-                    <input 
-                        type="password" 
-                        id="signupPasswordConfirm" 
-                        name="password_confirm" 
-                        class="form-input" 
-                        placeholder="비밀번호를 다시 한 번 입력하세요" 
-                        autocomplete="new-password" 
-                        required
-                    >
-                    <button type="button" class="btn-icon toggle-password" data-target="signupPasswordConfirm" title="비밀번호 표시/숨김" aria-label="비밀번호 표시 토글">
-                        👁️
-                    </button>
-                </div>
-                <span id="passwordMatchHint" class="form-hint"></span>
             </div>
 
             <div class="form-actions">
-                <button type="submit" id="signupSubmitBtn" class="btn btn-primary btn-block">
-                    <span class="btn-text">회원가입</span>
-                    <span class="btn-spinner" style="display: none;">가입 처리 중...</span>
+                <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">
+                    <span class="btn-text">로그인</span>
+                    <span class="btn-spinner" style="display: none;">로그인 중...</span>
                 </button>
             </div>
         </form>
 
         <div class="auth-footer">
-            <p>이미 계정이 있으신가요? <a href="{{ url_for('login_page') }}" class="link-primary">로그인</a></p>
+            <p>아직 계정이 없으신가요? <a href="{{ url_for('signup_page') }}" class="link-primary">회원가입</a></p>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', path='/js/signup.js') }}" defer></script>
+<script src="{{ url_for('static', path='/js/login.js') }}" defer></script>
 {% endblock %}
