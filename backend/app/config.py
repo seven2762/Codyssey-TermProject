@@ -31,7 +31,9 @@ if _https_only not in ("true", "false"):
     raise RuntimeError("SESSION_HTTPS_ONLY는 true 또는 false여야 합니다.")
 SESSION_HTTPS_ONLY = _https_only == "true"
 
-# AI 통신 설정. 잘못된 설정을 첫 질문이 아니라 기동 시점에 알 수 있도록 여기서 검증한다.
+# B 담당: AI 통신 설정.
+# 외부 게이트웨이를 처음 호출할 때가 아니라 애플리케이션 기동 시점에 설정 오류를
+# 발견하도록 필수 값과 형식을 여기서 검증한다. 배포 환경변수가 로컬 .env보다 우선한다.
 AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
 if not AI_API_KEY:
     raise RuntimeError("AI_API_KEY를 .env 또는 실행 환경에 설정하세요.")
@@ -47,6 +49,7 @@ if not AI_MODEL:
     raise RuntimeError("AI_MODEL을 .env 또는 실행 환경에 설정하세요.")
 
 try:
+    # OpenAI SDK 클라이언트가 사용하는 전체 요청 제한 시간(초)이다.
     AI_TIMEOUT = float(os.getenv("AI_TIMEOUT", "30"))
 except ValueError:
     raise RuntimeError("AI_TIMEOUT은 초 단위의 양수여야 합니다.") from None
