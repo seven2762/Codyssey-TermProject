@@ -10,9 +10,10 @@ OCI Compute 인스턴스에서 해당 이미지를 실행한다.
 2. 이 배포 잡이 통과해야 PR을 머지한다. 배포가 실패하면 머지하지 않는다.
 3. GitHub Actions 러너가 `tag:ci` Tailscale 임시 노드로 접속한다.
 4. 러너가 OCI의 Tailscale IP로 SSH 접속해 새 컨테이너를 시작한다.
-5. Docker 상태 확인이 실패하면 직전 컨테이너를 다시 시작한다.
-6. PR을 `develop`에 머지하면 같은 절차로 다시 배포해 서버를 통합본으로 되돌린다.
-7. `develop`을 `main`에 병합하면 같은 절차로 배포 기준을 갱신한다.
+5. 새 컨테이너의 Docker `HEALTHCHECK`가 성공하면 직전 컨테이너를 삭제한다.
+6. 실행 또는 상태 확인이 실패하면 실패 로그·종료 코드를 남기고 직전 컨테이너를 다시 시작한다.
+7. PR을 `develop`에 머지하면 같은 절차로 다시 배포해 서버를 통합본으로 되돌린다.
+8. `develop`을 `main`에 병합하면 같은 절차로 배포 기준을 갱신한다.
 
 릴리스 서버가 아닌 검증용 서버이므로 머지 전 PR 코드가 OCI에서 동작한다.
 OCI 컨테이너는 하나뿐이므로 `oci-production` 동시성 그룹이 배포를 순서대로 실행하며,
@@ -133,7 +134,7 @@ HTTPS로 서비스한 뒤에는 `production` 환경 Variable `SESSION_HTTPS_ONLY
 동일한 `SESSION_SECRET_KEY`를 유지해야 재배포 후에도 기존 로그인 세션이 유지된다.
 Secret 값을 바꾸면 모든 세션이 무효가 된다.
 브라우저가 HTTPS로 접근하는 배포에서는 `SESSION_HTTPS_ONLY` Variable을 `true`로 설정한다.
-현재 문서의 Tailscale IP 직접 HTTP 접근에서는 `false`를 사용한다.
+현재 문서의 공인 IP 직접 HTTP 접근에서는 `false`를 사용한다.
 쿠키 설정만으로 HTTPS가 제공되지는 않으며, 외부 공개 시에는 HTTPS 접속 경로를 마련한다.
 AI 게이트웨이 키도 같은 방식으로 전달한다. 키는 Secret, 주소·모델·제한 시간은
 Variable로 등록한다. 실제 키는 Git에 커밋하지 않는다.
@@ -149,6 +150,20 @@ SQLite는 기본적으로 `/app/data/askmate.db`에 저장한다. 배포는 이�
 기존 사용자 DB에는 `chats`만 추가하며 기존 계정·기록을 삭제하지 않는다.
 향후 테이블 구조를 바꾸는 배포에서는 DB 백업과 스키마 호환성을 별도로 확인한다.
 이전 컨테이너로 롤백해도 공유 볼륨의 DB 내용까지 되돌아가지는 않는다.
+
+### 컨테이너 교체와 자동 롤백
+
+워크플로는 새 이미지를 먼저 pull한 뒤 현재 `askmate-backend` 컨테이너를 삭제하지 않고
+`askmate-backend-previous`로 이름을 바꿔 보존한다. 새 컨테이너는 같은 이름으로 실행하며,
+Dockerfile의 `/health` 기반 `HEALTHCHECK`가 `healthy`가 될 때까지 최대 60초를 기다린다.
+
+- `docker run` 실패: 새 컨테이너의 로그와 종료 코드를 남기고 직전 컨테이너를 복원한다.
+- `unhealthy`·`exited` 또는 제한 시간 초과: 같은 롤백 절차를 수행한다.
+- `healthy`: 백업 컨테이너를 삭제하고 새 버전을 유지한다.
+- 최초 배포처럼 백업 컨테이너가 없으면 실패한 새 컨테이너만 제거한다.
+
+롤백은 애플리케이션 이미지와 컨테이너만 되돌린다. `askmate-data` 볼륨은 새·이전 컨테이너가
+공유하므로 DB 스키마 변경을 배포할 때는 이전 이미지와의 호환성과 별도 백업을 확인해야 한다.
 
 ## GitHub production 환경
 
