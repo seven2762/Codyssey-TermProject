@@ -1,8 +1,9 @@
 # AskMate - 로그인 기반 범용 AI 챗봇 프로젝트
 
 로그인한 사용자가 AI와 대화하고 자신의 대화 기록을 조회하는 웹 서비스입니다.
-현재는 FastAPI 실행 환경, Jinja2 화면 골격, SQLite 연결 확인과 LLM 통신 골격까지 구현되어 있습니다.
-계정 인증·실제 AI 호출·대화 저장 및 조회는 아직 구현되지 않았습니다.
+현재는 Jinja2 화면 골격, 회원가입·로그인·세션 인증, SQLite 대화 저장과 본인 기록 조회 API가 구현되어 있습니다.
+AI 통신 함수에 로그인 사용자의 최근 5쌍을 문맥으로 전달하고, OpenAI 호환 게이트웨이로 답변을 받습니다.
+로그인 폼과 기록 목록 등 화면 연동은 아직 구현되지 않았습니다.
 
 ## 개발 환경
 
@@ -26,9 +27,15 @@
         ├── pages.py       # Jinja2 화면 경로
         ├── templates/     # 화면 HTML
         ├── static/        # CSS·JavaScript·이미지
-        ├── models/        # 테이블 정의 위치 (현재 미구현)
+        ├── account.py     # 회원가입·로그인·로그아웃·현재 사용자 API
+        ├── account_db.py  # 사용자 저장·조회
+        ├── chat_db.py     # 질문·답변 저장 및 사용자별 조회
+        ├── history.py     # 내 대화 기록 조회 API
+        ├── auth.py        # 공통 세션 인증·POST 헤더 검사
+        ├── security.py    # 비밀번호 해시·검증
+        ├── models/        # 사용자·대화 기록 테이블
         ├── db_connect.py  # SQLite 연결·세션 제공
-        └── llm_connect.py # 외부 AI 통신 위치 (현재 미구현)
+        └── llm_connect.py # 외부 AI 통신 (OpenAI 호환 게이트웨이)
 ```
 
 ## 설치와 실행
@@ -38,6 +45,7 @@
 ```bash
 cd backend
 uv sync
+# 최초 실행 전에 아래 '환경 변수와 로컬 파일'의 비밀키 설정을 완료합니다.
 uv run uvicorn app.main:app --reload
 ```
 
@@ -55,8 +63,12 @@ Python 3.14가 없으면 uv의 기본 설정에서는 필요한 Python도 자동
 {"status": "ok"}
 ```
 
+서버를 켜고 기능이 동작하는지 확인하는 방법과 발표 시연 절차는
+[테스트·시연 가이드](docs/TESTING.md)에 단계별로 정리했습니다.
+백엔드를 직접 만들지 않는 팀원도 따라 할 수 있도록 명령어와 오류 대처법을 포함했습니다.
+
 `/health`는 서버의 기본 응답 여부를 확인하며, DB나 외부 AI API의 연결 상태는 검사하지 않습니다.
-`/` 경로는 `/login`으로 이동합니다. 서버 시작 시 SQLite 연결도 확인합니다.
+`/` 경로는 `/login`으로 이동합니다. 서버 시작 시 SQLite 연결을 확인하고 사용자·대화 테이블을 준비합니다.
 개발 서버는 `Ctrl+C`로 종료합니다. `--reload`는 개발용 옵션입니다.
 
 애플리케이션 시작 메시지와 Uvicorn 접근·오류 로그는 콘솔과 실행 디렉터리의
@@ -76,10 +88,16 @@ uv add <패키지명>
 
 ## 환경 변수와 로컬 파일
 
-필수 환경 변수는 없으며 `DATABASE_PATH`의 기본값은 `data/askmate.db`입니다.
-설정을 바꾸려면 `backend/.env.example`을 `.env`로 복사해 수정합니다.
+`SESSION_SECRET_KEY`는 필수입니다. 최초 실행 시 `backend/.env.example`을 `.env`로 복사하고,
+`uv run python -c "import secrets; print(secrets.token_urlsafe(32))"`로 생성한 값을 넣습니다.
+기존 `.env`가 있다면 덮어쓰지 말고 설정만 추가합니다. 기본 세션 유효기간은 1시간이며,
+HTTPS 배포에서는 `SESSION_HTTPS_ONLY=true`를 설정합니다.
+`DATABASE_PATH`의 기본값은 `data/askmate.db`입니다.
 상대 DB 경로는 `backend/` 기준이며, 배포 환경에서 전달한 값이 `.env`보다 우선합니다.
+AI 통신에는 `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`이 필요하며 `AI_TIMEOUT`의 기본값은 30초입니다.
+값이 없으면 앱이 시작하지 않습니다. 설정 방법은 [LLM 작업 안내](docs/LLM.md)를 참고하세요.
 실제 `.env`, 가상환경, Python 캐시, 실행 중 생성되는 DB·로그 파일은 Git에서 제외합니다.
+API 사용법과 세션 정책은 [계정·세션 인증 안내](docs/AUTH.md)를 참고하세요.
 
 ## 배포
 

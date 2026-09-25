@@ -5,8 +5,17 @@ description = "AskMate FastAPI backend"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "fastapi>=0.141.1",
+    "itsdangerous>=2.2.0",
     "jinja2>=3.1.6",
+    "openai>=3.16.2",
+    "pwdlib[argon2]>=0.3.1",
     "python-dotenv>=1.2.3",
     "sqlalchemy>=2.0.53",
     "uvicorn>=0.52.4",
+]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.0",
+    "pytest>=9.1.1",
 ]

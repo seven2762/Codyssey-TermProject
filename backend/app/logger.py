@@ -23,6 +23,14 @@ logging.basicConfig(
 
 logger = logging.getLogger("project_logger")
 
+# AI 통신에 쓰는 HTTP 클라이언트는 루트의 DEBUG 설정에서 연결 단계까지 모두 기록해
+# 서비스 로그를 덮는다. 요청 한 줄만 남기고 내부 동작은 경고부터 기록한다.
+# httpx2·httpcore2는 이 프로젝트가 설치한 배포판 이름이다.
+for name in ("httpx", "httpx2", "openai"):
+    logging.getLogger(name).setLevel(logging.INFO)
+for name in ("httpcore", "httpcore2"):
+    logging.getLogger(name).setLevel(logging.WARNING)
+
 # Uvicorn 로그도 루트의 콘솔·파일 핸들러로 전달한다.
 # 부모 로거까지 전파하고 기존 핸들러를 제거해 누락과 중복 출력을 방지한다.
 for name in ("uvicorn", "uvicorn.access", "uvicorn.error"):
