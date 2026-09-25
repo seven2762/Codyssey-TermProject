@@ -47,7 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
         countText.textContent = `총 ${chats.length}건의 대화`;
         itemsContainer.innerHTML = "";
 
-        chats.forEach((item) => {
+        chats.forEach((item, index) => {
             const card = document.createElement("div");
             card.className = "history-card";
 
@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             const idSpan = document.createElement("span");
-            idSpan.textContent = `#${item.id}`;
+            idSpan.textContent = `#${chats.length - index}`;
 
             header.appendChild(timeSpan);
             header.appendChild(idSpan);
