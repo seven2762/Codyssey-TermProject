@@ -43,6 +43,14 @@ document.addEventListener("DOMContentLoaded", () => {
         chatInput.style.height = `${Math.min(chatInput.scrollHeight, 160)}px`;
     }
 
+    // [추가] 초기화 시 입력창 공백 제거 및 상태 업데이트
+    if (chatInput) {
+        if (chatInput.value) {
+            chatInput.value = chatInput.value.trim();
+        }
+        updateCharCounter();
+    }
+
     chatInput.addEventListener("input", updateCharCounter);
 
     // Enter 키로 전송 (Shift+Enter는 줄바꿈)
