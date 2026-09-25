@@ -53,9 +53,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        if (password.length < 15 || password.length > 128) {
+        if (password.length < 8 || password.length > 128) {
             alertBox.className = "alert alert-danger";
-            alertBox.textContent = "비밀번호는 15자 이상 128자 이하로 입력해 주세요.";
+            alertBox.textContent = "비밀번호는 8자 이상 128자 이하로 입력해 주세요.";
             alertBox.style.display = "flex";
             passwordInput.focus();
             return;
