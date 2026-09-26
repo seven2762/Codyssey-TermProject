@@ -31,7 +31,9 @@ class AIServiceError(AIError):
     """제공자 오류, 연결 실패, 빈 응답 등 타임아웃이 아닌 실패."""
 
 
-# 요청마다 연결을 새로 맺지 않도록 클라이언트를 재사용한다.
+# 요청마다 TCP/TLS 연결과 커넥션 풀을 새로 만들지 않도록 비동기 클라이언트를
+# 모듈 수준에서 재사용한다. 자동 재시도는 중복 질문 가능성을 피하기 위해 끈다.
+# 재시도 여부는 502/504를 받은 화면에서 사용자가 결정한다.
 _client = AsyncOpenAI(
     api_key=AI_API_KEY,
     base_url=AI_BASE_URL,
@@ -42,6 +44,7 @@ _client = AsyncOpenAI(
 
 def _build_messages(question: str, history: list[dict[str, str]]) -> list[dict[str, str]]:
     """오래된 순서의 문맥 뒤에 이번 질문을 한 번만 덧붙인다."""
+    # 호출자가 전달한 목록을 변경하지 않도록 새 목록을 만든다.
     return [*history, {"role": "user", "content": question}]
 
 
@@ -59,16 +62,19 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
     started_at = time.monotonic()
 
     try:
+        # base_url 뒤의 /chat/completions 호출과 Authorization 헤더 구성은 SDK가 담당한다.
         completion = await _client.chat.completions.create(
             model=AI_MODEL,
             messages=messages,
         )
     except APITimeoutError:
+        # 시간 초과는 일시적인 지연으로 보고 라우터가 HTTP 504로 구분할 수 있게 전달한다.
         logger.warning(
             "ai_call_timeout model=%s elapsed=%.3f", AI_MODEL, time.monotonic() - started_at
         )
         raise AITimeoutError("AI 응답이 제한 시간을 초과했습니다.") from None
     except OpenAIError as error:
+        # 연결 실패, 인증 실패, 제공자 4xx/5xx 등 SDK 계열 오류는 HTTP 502 대상으로 묶는다.
         # 제공자 응답 본문에는 키나 내부 정보가 섞일 수 있으므로 예외 종류만 남긴다.
         logger.warning(
             "ai_call_failure model=%s elapsed=%.3f error_type=%s",
@@ -80,6 +86,7 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
 
     elapsed = time.monotonic() - started_at
 
+    # HTTP 200이어도 choices가 없거나 content가 공백이면 정상 답변으로 저장하지 않는다.
     choices = completion.choices or []
     answer = (choices[0].message.content or "").strip() if choices else ""
     if not answer:

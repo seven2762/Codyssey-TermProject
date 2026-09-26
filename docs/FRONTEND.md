@@ -11,13 +11,17 @@ Jinja2 + HTML/CSS/기본 JavaScript를 사용한다. FastAPI가 화면과 API를
 | `backend/app/templates/login.html` | 로그인 폼 |
 | `backend/app/templates/signup.html` | 회원가입 폼 |
 | `backend/app/templates/chat.html` | 질문 입력·답변·로딩·오류 표시 |
+| `backend/app/templates/history.html` | 대화 기록의 로딩·빈 목록·오류·목록 영역 |
 | `backend/app/static/css/style.css` | 공통 스타일 |
-| `backend/app/static/js/main.js` | 화면 이벤트·API 호출. 기능이 늘면 화면별 JS로 분리 가능 |
-| `backend/app/static/images/` | 이미지 |
+| `backend/app/static/js/common.js` | 공통 API 요청, 오류 메시지, 비밀번호 표시, 로그아웃 |
+| `backend/app/static/js/login.js` | 로그인 요청과 성공 후 `/chat` 이동 |
+| `backend/app/static/js/signup.js` | 가입 검증·요청과 성공 후 `/login?registered=1` 이동 |
+| `backend/app/static/js/chat.js` | 질문 전송, 글자 수, 로딩, 재시도, 말풍선 표시 |
+| `backend/app/static/js/history.js` | 본인 기록 조회와 최신순 목록 표시 |
 | `backend/app/pages.py` | 화면 경로와 로그인 상태에 따른 이동 |
 
-`history.html`의 기록 목록 구현은 D 담당이다. C는 공통 레이아웃과 스타일을 제공한다.
-각 HTML은 `base.html`을 상속하고 `title`, `content` 블록을 채운다.
+각 HTML은 `base.html`을 상속하고 `title`, `content`, `scripts` 블록을 채운다.
+기록 조회 API는 D 담당이며 화면은 공통 API 래퍼를 사용해 연결되어 있다.
 
 ## 먼저 실행하기
 
@@ -31,25 +35,21 @@ uv run uvicorn app.main:app --reload
 ```
 
 브라우저에서 `http://127.0.0.1:8000/login`에 접속한다.
-화면은 현재 안내 문구가 있는 골격이다. `/chat`, `/history`는 로그인 후에만 접근할 수 있다.
+로그인·회원가입 화면은 공개이고 `/chat`, `/history`는 로그인 후에만 접근할 수 있다.
 HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 [계정·세션 인증 안내](AUTH.md)의 `.env` 설정을 먼저 완료한다.
 
-## 구현 순서와 API 약속
+## 현재 화면 연결과 API 약속
 
 전체 요청·응답 규격은 [API 명세](API.md)를 참고한다.
-`static/js/main.js`의 `signupUser(username, password)`는 실제 회원가입 API를 호출하는 예시이다.
-폼의 submit 처리에서 호출하면 성공 시 `{id, username}`을 반환하고, 실패 시 `Error`를 던진다.
-입력 검증 오류와 중복 가입 안내는 `catch`에서 `error.message`로 표시한다.
-
-1. 로그인·회원가입 폼과 채팅 화면을 작성한다.
-2. 채팅에 공백 입력 차단, 1,000자 제한, 전송 중 버튼 비활성화와 오류 표시를 넣는다.
-3. 아래 API가 담당자의 PR에서 완성되면 JavaScript의 `fetch`로 연결한다.
+`common.js`의 `apiRequest()`가 JSON 직렬화, POST 보안 헤더, 204 처리, 401 이동과
+네트워크 오류를 공통 처리한다. 각 화면 전용 스크립트는 이 반환값의 `ok`, `status`, `data`로
+성공과 오류 UI를 나눈다.
 
 화면 경로는 `/login`처럼 사용하고, 데이터 요청은 `/api/*`로 보낸다.
 요청 본문은 JSON이며 `Content-Type: application/json`을 지정한다.
 모든 POST 요청에 `X-Requested-With: XMLHttpRequest` 헤더를 추가한다. 누락·다른 값은 403이다.
-다음 표는 후속 구현의 공통 규격이며 현재 전부 구현된 API 목록이 아니다.
+다음 API와 화면 연결은 모두 구현되어 있다.
 
 | API | 요청 | 성공 응답 | 현재 상태 |
 | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ HTML 파일을 직접 열지 않고 FastAPI 주소로 접속한다.
 
 - 사용자명: 앞뒤 공백을 제거한 뒤 3~30자, 영문·숫자·밑줄(`_`)만 허용한다.
   소문자로 저장하므로 `Charles`와 `charles`는 같은 사용자명이다.
-- 비밀번호: 15~128자이며 공백과 유니코드 문자를 허용한다. `trim()`이나 소문자 변환을 하지 않는다.
+- 비밀번호: 8~128자이며 공백과 유니코드 문자를 허용한다. `trim()`이나 소문자 변환을 하지 않는다.
 - 성공: 201과 `id`, `username`을 반환한다. 자동 로그인하지 않으며, 프론트에서 로그인 화면으로 이동시킨다.
 - 중복: 409, `{"detail":"이미 사용 중인 사용자명입니다."}`.
 - 입력 오류: 422, `detail` 배열의 `loc`, `msg`, `type`으로 필드별 안내를 표시한다.
@@ -120,11 +120,11 @@ if (response.ok) {
 ```
 
 같은 출처의 fetch에는 브라우저가 쿠키를 자동으로 전송한다. JavaScript에서 쿠키를 읽을 필요가 없다.
-로그인 비밀번호는 1~128자를 받으며, 가입 화면의 15자 최소 조건을 로그인 화면에 적용하지 않는다.
+로그인 비밀번호는 1~128자를 받으며, 가입 화면의 8자 최소 조건을 로그인 화면에 적용하지 않는다.
 잘못된 사용자명과 비밀번호는 모두 401과 같은 안내를 반환한다.
 `GET /api/me`는 현재 사용자 표시용이다. 보호된 API의 401은 로그인 화면으로 안내한다.
 로그아웃은 공통 헤더와 함께 `POST /api/logout`을 보내고, 성공하면 `/login`으로 이동한다.
-204에서는 JSON을 파싱하지 않는다. 화면 폼·버튼의 실제 연결은 프론트 작업으로 진행한다.
+204에서는 JSON을 파싱하지 않는다. 이 처리는 `common.js`의 `apiRequest()`에 구현되어 있다.
 
 에러는 `response.ok`로 먼저 구분한다. 기본 오류 본문은 `{"detail": ...}`이며,
 입력 검증 오류(422)의 `detail`은 배열일 수 있다. 사용자에게 읽을 수 있는 안내를 표시한다.
@@ -155,12 +155,13 @@ if (response.status === 401) {
 시간은 `2026-09-20T03:00:00Z`처럼 UTC로 전달하며 브라우저에서 사용자 시간대로 표시한다.
 API는 현재 본인의 전체 기록을 `created_at DESC, id DESC` 순서로 반환한다.
 조회 실패는 500과 `{"detail":"대화 기록을 불러오지 못했습니다."}`로 안내한다.
-응답에는 `Cache-Control: no-store`가 적용되어 있다. 화면의 목록 표시는 프론트에서 구현한다.
+응답에는 `Cache-Control: no-store`가 적용되어 있다. `history.js`가 로딩·빈 목록·오류 상태와
+질문·답변을 `textContent`로 안전하게 표시한다.
 
 ## 작업 완료 확인
 
 - 작은 화면에서도 입력·전송·오류 메시지를 확인할 수 있다.
 - 빈 입력과 긴 입력을 차단하고, 실패 후 다시 전송할 수 있다.
 - AI 실패(504·502)를 성공이나 가짜 AI 답변으로 표시하지 않는다.
-- `feature/frontend`에서 작업하고 `develop` 대상으로 PR을 작성한다.
+- 최신 `develop`에서 작업 브랜치를 만들고 `develop` 대상으로 PR을 작성한다.
 - API 경로나 공통 `main.py`를 변경할 때는 A·B·D와 공유한다.

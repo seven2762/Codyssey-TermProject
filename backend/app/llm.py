@@ -5,7 +5,7 @@
    생성자   : Changhwan Kim
 
    생성일   : 2026/09/14
-   업데이트  : 2026/09/20
+   업데이트  : 2026/09/25
 
    설명     : 로그인 사용자의 AI 질문 처리와 대화 기록 저장
 
@@ -56,6 +56,8 @@ async def chat(
         logger.exception("db_read_failure operation=chat_context user_id=%s", user_id)
         raise HTTPException(status_code=500, detail="최근 대화 기록을 불러오지 못했습니다.") from None
 
+    # B의 통신 모듈이 OpenAI messages 형식으로 바로 사용할 수 있도록 최근 대화 쌍을
+    # user/assistant 메시지로 펼친다. DB 조회 결과는 이미 오래된 순서로 정렬되어 있다.
     history: list[dict[str, str]] = []
     for chat in chats:
         history.extend([
@@ -63,8 +65,9 @@ async def chat(
             {"role": "assistant", "content": chat.answer},
         ])
 
-    # 제공자의 오류 상세와 키가 사용자 응답에 섞이지 않도록 안내 메시지만 반환한다.
-    # 실패 원인은 llm_connect의 ai_call_* 로그에 남는다.
+    # B 담당 예외 변환: 제공자의 오류 상세와 키가 사용자 응답에 섞이지 않도록
+    # 사용자용 고정 문구만 반환한다. 실제 실패 유형과 소요 시간은 llm_connect의
+    # ai_call_* 로그에 남으며, AI 호출 실패 시 아래 DB 저장 단계에는 진입하지 않는다.
     try:
         answer = await llm_connect.generate_answer(payload.question, history=history)
     except AITimeoutError:
@@ -79,6 +82,7 @@ async def chat(
         ) from None
 
     try:
+        # AI 응답을 받은 경우에만 질문·답변을 한 쌍으로 저장한다.
         # 동기 DB 저장이 다른 비동기 요청을 막지 않도록 스레드에서 실행한다.
         chat_id = await run_in_threadpool(create_chat, db, user_id, payload.question, answer)
     except SQLAlchemyError:

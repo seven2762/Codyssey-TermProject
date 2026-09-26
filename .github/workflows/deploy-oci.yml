@@ -299,9 +299,12 @@ jobs:
             exit 1
           fi
 
+          # 새 이미지 준비가 실패해도 현재 서비스에는 영향을 주지 않도록 먼저 pull한다.
           docker pull "$TARGET_IMAGE"
           docker rm --force "$backup_container" >/dev/null 2>&1 || true
 
+          # 현재 컨테이너는 즉시 삭제하지 않고 백업 이름으로 보존한다.
+          # 새 버전의 기동 또는 health check가 실패하면 이 컨테이너를 다시 시작한다.
           if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
             docker stop "$CONTAINER_NAME"
             docker rename "$CONTAINER_NAME" "$backup_container"
@@ -324,7 +327,8 @@ jobs:
           run_options+=(--env-file "$deploy_env_file")
 
           rollback() {
-            # 기동 실패 원인은 대부분 stderr로 나오므로 표준 출력으로 합쳐 남긴다.
+            # 실패 컨테이너를 삭제하기 전에 로그와 종료 코드를 Actions 로그에 남긴다.
+            # 기동 실패 원인은 대부분 stderr로 나오므로 표준 출력으로 합쳐 수집한다.
             echo "--- ${CONTAINER_NAME} 컨테이너 로그 (최근 100줄) ---" >&2
             docker logs --tail 100 "$CONTAINER_NAME" 2>&1 || true
             echo "--- 컨테이너 로그 끝 ---" >&2
@@ -333,19 +337,23 @@ jobs:
             exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$CONTAINER_NAME" 2>/dev/null || echo unknown)"
             echo "컨테이너 상태: ${health_status}, 종료 코드: ${exit_code}" >&2
 
+            # 실패한 새 컨테이너가 기존 이름을 점유하지 않도록 제거한다.
             docker rm --force "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
+            # 백업이 존재할 때만 원래 이름으로 되돌리고 서비스를 재개한다.
             if docker container inspect "$backup_container" >/dev/null 2>&1; then
               docker rename "$backup_container" "$CONTAINER_NAME"
               docker start "$CONTAINER_NAME"
             fi
           }
 
+          # docker run 자체가 실패한 경우에도 동일한 롤백 절차를 사용한다.
           if ! docker run "${run_options[@]}" "$TARGET_IMAGE"; then
             rollback
             exit 1
           fi
 
+          # Dockerfile의 HEALTHCHECK가 healthy가 될 때까지 최대 60초(30회 × 2초) 기다린다.
           for attempt in $(seq 1 30); do
             health_status="$(
               docker inspect \
@@ -354,6 +362,7 @@ jobs:
             )"
 
             if [[ "$health_status" == "healthy" ]]; then
+              # 새 버전이 정상 응답할 때만 직전 버전을 최종 삭제한다.
               docker rm --force "$backup_container" >/dev/null 2>&1 || true
               exit 0
             fi
@@ -365,6 +374,7 @@ jobs:
             sleep 2
           done
 
+          # 제한 시간 안에 healthy가 되지 않았거나 unhealthy/exited이면 직전 버전으로 복구한다.
           rollback
           exit 1
           REMOTE_SCRIPT

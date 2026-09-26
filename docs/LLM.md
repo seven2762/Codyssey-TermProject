@@ -20,6 +20,17 @@
 `generate_answer()`는 OpenAI 호환 게이트웨이에 Chat Completions 형식으로 요청한다.
 최근 5쌍의 문맥 조회·전달, 답변 수신 후 저장, 본인 기록 조회 API가 연결되어 있다.
 
+## 실행 흐름과 담당 경계
+
+1. `llm.py`가 로그인과 질문 길이를 검증하고 현재 사용자의 최근 5쌍을 조회한다.
+2. 조회 결과를 오래된 순서의 `user`·`assistant` 메시지로 펼친다.
+3. `llm_connect.generate_answer()`가 이번 질문을 마지막에 한 번 추가해 게이트웨이를 호출한다.
+4. B 담당 통신 모듈은 답변 문자열만 반환하거나 `AITimeoutError`·`AIServiceError`를 발생시킨다.
+5. `llm.py`가 성공 답변만 DB에 저장하고 JSON으로 반환한다.
+
+인증·DB 조회·저장은 A·D 영역이고, 게이트웨이 요청 형식·제한 시간·응답 추출·AI 로그는 B 영역이다.
+AI 호출 실패 시 저장 단계에 진입하지 않으므로 실패 질문이 다음 요청의 문맥에 섞이지 않는다.
+
 ## 환경 변수
 
 | 변수 | 필수 | 기본값 | 설명 |
@@ -69,6 +80,19 @@ curl -H "Authorization: Bearer $AI_API_KEY" https://copa.codyssey.kr/v1/models
 실패한 질문은 저장하지 않으며, 다음 요청의 문맥에도 포함되지 않는다.
 `max_retries=0`이므로 SDK가 자동으로 재시도하지 않는다. 재시도는 사용자가 다시 질문해 수행한다.
 
+### 트러블슈팅 순서
+
+| 증상 | 우선 확인 | 정상 기준 |
+| --- | --- | --- |
+| 서버가 시작하지 않음 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL`, `AI_TIMEOUT` | 필수 값 존재, URL은 HTTP(S), 제한 시간은 양수 |
+| 채팅이 504 반환 | `ai_call_timeout` 로그와 `AI_TIMEOUT` | 게이트웨이 응답 시간이 제한 시간 이내 |
+| 채팅이 502 반환 | `ai_call_failure`의 `error_type` | 연결·인증·모델 이름·응답 content 정상 |
+| 후속 질문 문맥 이상 | `message_count`, 최근 기록 정렬 | 최근 5쌍 + 현재 질문 1개 |
+| 성공했지만 기록 없음 | `db_save_success` 또는 `db_save_failure` | AI 성공 후 저장 성공 로그 존재 |
+
+사용자 응답에는 제공자의 원문 오류를 넣지 않는다. 원인 파악은 서버 로그의 이벤트명,
+예외 종류와 소요 시간을 사용하고 질문·답변·API 키는 로그로 출력하지 않는다.
+
 ## 로그
 
 | 이벤트 | 남기는 값 |
@@ -108,7 +132,7 @@ async def generate_answer(question: str, history: list[dict[str, str]]) -> str:
 ```
 
 - `question`: 이번 질문. history에 중복해서 넣지 않는다.
-- `history`: 현재 사용자의 최근 5개 질문·답변 쌍을 오래된 순서로 펼친 메시지 목록.
+- `history`: 현재 사용자의 최근 5쌍의 질문·답변을 오래된 순서로 펼친 메시지 목록.
   각 항목은 `{"role":"user","content":"질문"}` 또는 `{"role":"assistant","content":"답변"}`이다.
   최대 10개 메시지이며, 기록이 없으면 빈 목록이다. 같은 시각의 기록은 ID 순서로 정렬한다.
 - 반환값: AI 답변 문자열. HTTP 응답 객체나 DB 모델을 반환하지 않는다.

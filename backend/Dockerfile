@@ -25,6 +25,8 @@ USER askmate
 
 EXPOSE 8000
 
+# B 담당 배포 검증: 프로세스 실행 여부가 아니라 실제 HTTP 응답을 확인한다.
+# 이 상태가 healthy가 되어야 워크플로가 이전 컨테이너를 제거한다.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
     CMD [".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
 

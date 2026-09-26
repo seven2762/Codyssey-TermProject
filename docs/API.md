@@ -7,6 +7,7 @@
 - 모든 POST: `X-Requested-With: XMLHttpRequest` 필수. GET에는 필요 없음.
 - 인증: `askmate_session` 쿠키. 같은 출처의 `fetch`는 쿠키를 자동 전송.
 - 세션: HttpOnly, SameSite=Lax. 기본 유효기간 1시간이며 조회로 연장되지 않음.
+- HTTPS 배포에서 `SESSION_HTTPS_ONLY=true`이면 세션 쿠키에 Secure 속성이 추가됨.
 - 사용자 ID를 전달해 인증·조회 대상을 지정하지 않음.
 - 자동 명세: `/docs`, `/openapi.json`.
 
@@ -20,12 +21,25 @@
 | POST | `/api/chat` | 필수 | 200, AI 답변 |
 | GET | `/api/me/chats` | 필수 | 200, 본인 대화 기록 배열 |
 
+## 화면 경로와 리다이렉트
+
+| 메서드 | 경로 | 비로그인 | 로그인 상태 |
+| --- | --- | --- | --- |
+| GET | `/` | 307 → `/login` | 307 → `/login`, 이후 `/login`에서 `/chat`으로 이동 |
+| GET | `/login` | 200, 로그인 화면 | 303 → `/chat` |
+| GET | `/signup` | 200, 회원가입 화면 | 303 → `/chat` |
+| GET | `/chat` | 303 → `/login` | 200, `Cache-Control: no-store` |
+| GET | `/history` | 303 → `/login` | 200, `Cache-Control: no-store` |
+
+회원가입 화면은 성공 시 클라이언트에서 `/login?registered=1`로 이동한다. 이 쿼리는
+완료 안내 표시용이며 서버의 인증 동작에는 영향을 주지 않는다.
+
 ## 회원가입 — POST `/api/signup`
 
 | 필드 | 타입 | 조건 |
 | --- | --- | --- |
 | `username` | string | 필수. 앞뒤 공백 제거·소문자 변환 후 3~30자, 영문·숫자·밑줄 |
-| `password` | string | 필수. 15~128자. 공백 포함 원본 그대로 전송 |
+| `password` | string | 필수. 8~128자. 공백 포함 원본 그대로 전송 |
 
 요청:
 
@@ -56,7 +70,7 @@
 {"username":"demo_user","password":"example password phrase"}
 ```
 
-200: `Set-Cookie`로 세션 발급.
+200: `Set-Cookie`로 `askmate_session` 세션 발급, `Cache-Control: no-store`.
 
 ```json
 {"id":1,"username":"demo_user"}
@@ -67,7 +81,7 @@
 
 ## 현재 사용자 — GET `/api/me`
 
-본문 없음. 200:
+본문 없음. 200과 `Cache-Control: no-store`:
 
 ```json
 {"id":1,"username":"demo_user"}
@@ -76,7 +90,7 @@
 ## 로그아웃 — POST `/api/logout`
 
 - 본문 없음. 현재 브라우저의 세션 쿠키 삭제.
-- 204: 응답 본문 없음. `response.json()` 호출 금지.
+- 204: 응답 본문 없음, `Cache-Control: no-store`. `response.json()` 호출 금지.
 - 이미 로그아웃된 상태에서도 204.
 - 다른 브라우저나 복사된 쿠키를 서버에서 즉시 무효화하지 않음.
 
@@ -86,7 +100,7 @@
 | --- | --- | --- |
 | `question` | string | 필수. 앞뒤 공백 제거 후 1~1,000자 |
 
-서버가 본인의 최근 5쌍을 오래된 순서의 문맥으로 전달. 이번 질문은 문맥과 별도로 전달.
+서버가 본인의 최근 5쌍을 오래된 순서의 문맥으로 구성한 뒤 이번 질문을 마지막에 한 번 추가한다.
 클라이언트는 사용자 ID나 이전 대화 목록을 보낼 필요 없음.
 
 요청:
@@ -111,15 +125,13 @@ AI 통신 실패는 상태 코드로 구분한다. 제공자의 오류 상세는
 | 500 | 대화 저장 실패 | 대화 기록을 저장하지 못했습니다. |
 
 실패한 질문은 저장되지 않으므로 `GET /api/me/chats`에도 나타나지 않는다.
-
-- 문맥 조회 실패 시 500: `최근 대화 기록을 불러오지 못했습니다.`. AI 호출·새 기록 저장 없음.
-- DB 저장 실패 시 500: `대화 기록을 저장하지 못했습니다.`
+문맥 조회 실패 시 AI를 호출하지 않으며, AI 통신 실패나 빈 답변이면 DB 저장을 수행하지 않는다.
 
 ## 내 대화 기록 — GET `/api/me/chats`
 
 - 본문 없음. 본인의 전체 기록을 `created_at DESC, id DESC` 순서로 반환.
 - `created_at`: UTC ISO 8601 문자열. 소수점 이하 초가 포함될 수 있음.
-- 기록이 없으면 200과 `[]`.
+- 기록이 없으면 200과 `[]`. 성공 응답은 `Cache-Control: no-store`.
 
 200:
 
@@ -168,4 +180,5 @@ DB·외부 AI 연결 상태는 검사하지 않음.
 ```
 
 `loc`는 오류 필드, `msg`는 안내 메시지. 원본 입력과 비밀번호는 반환하지 않음.
-로그인·로그아웃·현재 사용자·대화 기록의 성공 응답은 `Cache-Control: no-store`.
+로그인·로그아웃·현재 사용자·대화 기록의 성공 응답과 보호된 HTML 화면에는
+`Cache-Control: no-store`가 적용된다.
